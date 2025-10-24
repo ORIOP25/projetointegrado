@@ -42,14 +42,8 @@ interface Student {
   status: string;
 }
 
-interface Department {
-  id: string;
-  name: string;
-}
-
 const Students = () => {
   const [students, setStudents] = useState<Student[]>([]);
-  const [departments, setDepartments] = useState<Department[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
@@ -60,7 +54,6 @@ const Students = () => {
     email: "",
     phone: "",
     course: "",
-    department_id: "",
     status: "active",
   });
 
@@ -70,13 +63,10 @@ const Students = () => {
 
   const loadData = async () => {
     try {
-      const [studentsRes, departmentsRes] = await Promise.all([
-        supabase.from("students").select("*").order("name"),
-        supabase.from("departments").select("*").eq("type", "academic").order("name"),
-      ]);
+      const { data, error } = await supabase.from("students").select("*").order("name");
 
-      if (studentsRes.data) setStudents(studentsRes.data);
-      if (departmentsRes.data) setDepartments(departmentsRes.data);
+      if (error) throw error;
+      if (data) setStudents(data);
     } catch (error) {
       console.error("Error loading data:", error);
     } finally {
@@ -133,7 +123,6 @@ const Students = () => {
       email: student.email || "",
       phone: student.phone || "",
       course: student.course || "",
-      department_id: student.department_id || "",
       status: student.status,
     });
     setDialogOpen(true);
@@ -168,7 +157,6 @@ const Students = () => {
       email: "",
       phone: "",
       course: "",
-      department_id: "",
       status: "active",
     });
     setEditingStudent(null);
@@ -231,26 +219,6 @@ const Students = () => {
                   value={formData.course}
                   onChange={(e) => setFormData({ ...formData, course: e.target.value })}
                 />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="department">Departamento</Label>
-                <Select
-                  value={formData.department_id}
-                  onValueChange={(value) =>
-                    setFormData({ ...formData, department_id: value })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecionar departamento" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {departments.map((dept) => (
-                      <SelectItem key={dept.id} value={dept.id}>
-                        {dept.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="status">Estado</Label>

@@ -146,6 +146,9 @@ const Staff = () => {
           throw new Error("A senha deve ter pelo menos 6 caracteres");
         }
 
+        // Get current session to restore later
+        const { data: { session: currentSession } } = await supabase.auth.getSession();
+
         // 1. Create user in auth.users
         const { data: authData, error: authError } = await supabase.auth.signUp({
           email: formData.email,
@@ -160,6 +163,14 @@ const Staff = () => {
 
         if (authError) throw authError;
         if (!authData.user) throw new Error("Falha ao criar usuário");
+
+        // Restore the original admin session
+        if (currentSession) {
+          await supabase.auth.setSession({
+            access_token: currentSession.access_token,
+            refresh_token: currentSession.refresh_token,
+          });
+        }
 
         // 2. Create staff record linked to user
         const staffData = {
@@ -176,9 +187,8 @@ const Staff = () => {
         const { error: staffError } = await supabase.from("staff").insert([staffData]);
 
         if (staffError) {
-          // If staff creation fails, we should clean up the auth user
           console.error("Failed to create staff record:", staffError);
-          throw new Error("Falha ao criar registro de funcionário");
+          throw new Error("Falha ao criar registro de funcionário: " + staffError.message);
         }
 
         // 3. Assign 'staff' role to the new user
