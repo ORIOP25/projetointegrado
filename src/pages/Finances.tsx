@@ -48,6 +48,13 @@ const Finances = () => {
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
+  const [formData, setFormData] = useState({
+    type: "revenue",
+    category: "",
+    amount: "",
+    description: "",
+    transaction_date: new Date().toISOString().split("T")[0],
+  });
   const { toast } = useToast();
   const { isGlobalAdmin } = useUserRole();
 
@@ -69,14 +76,6 @@ const Finances = () => {
       </div>
     );
   }
-
-  const [formData, setFormData] = useState({
-    type: "revenue",
-    category: "",
-    amount: "",
-    description: "",
-    transaction_date: new Date().toISOString().split("T")[0],
-  });
 
   useEffect(() => {
     loadTransactions();
