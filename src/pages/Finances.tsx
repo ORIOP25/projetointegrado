@@ -31,23 +31,25 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Pencil, Trash2, TrendingUp, TrendingDown } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useUserRole } from "@/hooks/useUserRole";
 
 interface Transaction {
   id: string;
   type: string;
   category: string;
-  amount: number;
+  amount: number; // Supabase deve retornar number para DECIMAL
   description: string | null;
   transaction_date: string;
 }
 
-import { useUserRole } from "@/hooks/useUserRole";
-
 const Finances = () => {
+  // Hooks no Top Level - OK
+  const { isGlobalAdmin } = useUserRole();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true); // Começa true
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
+  const { toast } = useToast();
   const [formData, setFormData] = useState({
     type: "revenue",
     category: "",
@@ -55,11 +57,52 @@ const Finances = () => {
     description: "",
     transaction_date: new Date().toISOString().split("T")[0],
   });
-  const { toast } = useToast();
-  const { isGlobalAdmin } = useUserRole();
 
-  // Redirect if not global admin
-  if (!isGlobalAdmin) {
+  // Função para carregar dados
+  const loadTransactions = async () => {
+    // Não definir loading para true aqui, já começa como true
+    try {
+      const { data, error } = await supabase
+        .from("financial_transactions")
+        .select("*")
+        .order("transaction_date", { ascending: false });
+
+      if (error) {
+        throw error; // Propaga o erro para o catch
+      }
+
+      // Atualiza o estado apenas se houver dados
+      if (data) {
+        setTransactions(data);
+      }
+      // Define loading como false apenas após sucesso (com ou sem dados)
+      setLoading(false);
+
+    } catch (error) {
+      console.error("Error loading transactions:", error);
+      toast({ // Adiciona um toast de erro no fetch
+        title: "Erro ao Carregar Transações",
+        description: error instanceof Error ? error.message : "Ocorreu um erro desconhecido.",
+        variant: "destructive",
+      });
+      setLoading(false); // Define loading como false também em caso de erro
+    }
+  };
+
+
+  // useEffect
+  useEffect(() => {
+    if (isGlobalAdmin) {
+       // A função loadTransactions agora lida com setLoading internamente
+       loadTransactions();
+    } else {
+      // Se não for admin, definir loading como false imediatamente
+      setLoading(false);
+    }
+  }, [isGlobalAdmin]); // Dependência correta
+
+  // Verificação de permissão DEPOIS dos Hooks
+  if (!isGlobalAdmin && !loading) { // Só mostra o erro se não estiver loading e não for admin
     return (
       <div className="flex items-center justify-center min-h-[50vh]">
         <Card className="max-w-md">
@@ -77,52 +120,68 @@ const Finances = () => {
     );
   }
 
-  useEffect(() => {
-    loadTransactions();
-  }, []);
+  // Se ainda estiver a carregar (inicialmente ou durante o fetch), mostra um loader
+  if (loading) {
+     return (
+       <div className="flex items-center justify-center min-h-[50vh]">
+         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+       </div>
+     );
+  }
 
-  const loadTransactions = async () => {
-    try {
-      const { data, error } = await supabase
-        .from("financial_transactions")
-        .select("*")
-        .order("transaction_date", { ascending: false });
 
-      if (error) throw error;
-      if (data) setTransactions(data);
-    } catch (error) {
-      console.error("Error loading transactions:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Cálculos (apenas se for admin e não estiver loading)
+  // Reforço nos cálculos para evitar NaN
+  const totalRevenue = transactions
+    .filter((t) => t.type === "revenue")
+    .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const totalExpenses = transactions
+    .filter((t) => t.type === "expense")
+    .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+
+  // Funções de manipulação (só são relevantes se for admin)
+   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log("handleSubmit called"); // DEBUG: Verifica se a função é chamada
+
+    // Define loading como true no início da submissão
     setLoading(true);
 
     try {
-      const data = {
+      const dataToSave = {
         ...formData,
-        amount: parseFloat(formData.amount),
+        amount: parseFloat(formData.amount) || 0, // Garante que é número
+        // Certifica-te que não há mais referências a department_id aqui
       };
+      console.log("Data to save:", dataToSave); // DEBUG: Verifica os dados a serem guardados
 
       if (editingTransaction) {
+        console.log("Updating transaction:", editingTransaction.id); // DEBUG
         const { error } = await supabase
           .from("financial_transactions")
-          .update(data)
+          .update(dataToSave)
           .eq("id", editingTransaction.id);
 
-        if (error) throw error;
+        if (error) {
+           console.error("Supabase update error:", error); // DEBUG: Mostra erro específico do Supabase
+           throw error; // Lança o erro para o catch
+        }
+        console.log("Update successful"); // DEBUG
 
         toast({
           title: "Transação atualizada",
           description: "A transação foi atualizada com sucesso.",
         });
       } else {
-        const { error } = await supabase.from("financial_transactions").insert([data]);
+        console.log("Inserting new transaction"); // DEBUG
+        const { error } = await supabase.from("financial_transactions").insert([dataToSave]);
 
-        if (error) throw error;
+        if (error) {
+          console.error("Supabase insert error:", error); // DEBUG: Mostra erro específico do Supabase
+          throw error; // Lança o erro para o catch
+        }
+         console.log("Insert successful"); // DEBUG
 
         toast({
           title: "Transação criada",
@@ -132,16 +191,20 @@ const Finances = () => {
 
       setDialogOpen(false);
       resetForm();
+      // Chama loadTransactions para recarregar. Ele vai gerir o setLoading(false)
       loadTransactions();
+
     } catch (error: any) {
+      console.error("Error in handleSubmit catch block:", error); // DEBUG: Mostra qualquer erro capturado
       toast({
-        title: "Erro",
+        title: "Erro ao guardar",
         description: error.message,
         variant: "destructive",
       });
-    } finally {
+      // Se ocorreu um erro DURANTE a submissão, volta a desativar o loading
       setLoading(false);
     }
+    // Não é necessário um finally aqui se loadTransactions já trata do setLoading(false)
   };
 
   const handleEdit = (transaction: Transaction) => {
@@ -149,14 +212,14 @@ const Finances = () => {
     setFormData({
       type: transaction.type,
       category: transaction.category,
-      amount: transaction.amount.toString(),
+      amount: transaction.amount.toString(), // Mantém como string no form
       description: transaction.description || "",
       transaction_date: transaction.transaction_date,
     });
     setDialogOpen(true);
   };
 
-  const handleDelete = async (id: string) => {
+ const handleDelete = async (id: string) => {
     if (!confirm("Tem a certeza que deseja eliminar esta transação?")) return;
 
     try {
@@ -171,16 +234,18 @@ const Finances = () => {
         title: "Transação eliminada",
         description: "A transação foi eliminada com sucesso.",
       });
-
-      loadTransactions();
+      // setLoading(true); // Define loading para recarregar
+      loadTransactions(); // Recarrega os dados
     } catch (error: any) {
       toast({
-        title: "Erro",
+        title: "Erro ao eliminar",
         description: error.message,
         variant: "destructive",
       });
+      // setLoading(false); // Para caso adiciones setLoading(true) no início
     }
   };
+
 
   const resetForm = () => {
     setFormData({
@@ -193,14 +258,8 @@ const Finances = () => {
     setEditingTransaction(null);
   };
 
-  const totalRevenue = transactions
-    .filter((t) => t.type === "revenue")
-    .reduce((sum, t) => sum + Number(t.amount), 0);
 
-  const totalExpenses = transactions
-    .filter((t) => t.type === "expense")
-    .reduce((sum, t) => sum + Number(t.amount), 0);
-
+  // JSX da página (só renderiza se for admin e não estiver a carregar)
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
@@ -225,6 +284,7 @@ const Finances = () => {
               </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
+              {/* Campos do formulário */}
               <div className="space-y-2">
                 <Label htmlFor="type">Tipo *</Label>
                 <Select
@@ -292,8 +352,10 @@ const Finances = () => {
                 >
                   Cancelar
                 </Button>
-                <Button type="submit" disabled={loading}>
-                  {loading ? "A guardar..." : "Guardar"}
+                {/* Opcional: Adicionar estado de loading ao botão de guardar */}
+                <Button type="submit" /* disabled={isSubmitting} */>
+                  {/* {isSubmitting ? "A guardar..." : "Guardar"} */}
+                  Guardar
                 </Button>
               </DialogFooter>
             </form>
@@ -301,61 +363,64 @@ const Finances = () => {
         </Dialog>
       </div>
 
+      {/* Cards de Resumo Financeiro */}
       <div className="grid gap-4 md:grid-cols-3 mb-6">
-        <Card className="bg-gradient-to-br from-success/10 to-success/5 border-success/20">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium flex items-center justify-between">
-              <span>Total Receitas</span>
-              <TrendingUp className="h-4 w-4 text-success" />
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-success">
-              €{totalRevenue.toLocaleString("pt-PT", { minimumFractionDigits: 2 })}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-destructive/10 to-destructive/5 border-destructive/20">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium flex items-center justify-between">
-              <span>Total Despesas</span>
-              <TrendingDown className="h-4 w-4 text-destructive" />
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-destructive">
-              €{totalExpenses.toLocaleString("pt-PT", { minimumFractionDigits: 2 })}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card
-          className={`bg-gradient-to-br ${
-            totalRevenue - totalExpenses >= 0
-              ? "from-primary/10 to-primary/5 border-primary/20"
-              : "from-warning/10 to-warning/5 border-warning/20"
-          }`}
-        >
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium">Saldo</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div
-              className={`text-2xl font-bold ${
-                totalRevenue - totalExpenses >= 0 ? "text-success" : "text-warning"
-              }`}
-            >
-              €
-              {(totalRevenue - totalExpenses).toLocaleString("pt-PT", {
-                minimumFractionDigits: 2,
-              })}
-            </div>
-          </CardContent>
-        </Card>
+         {/* Card Receitas */}
+         <Card className="bg-gradient-to-br from-success/10 to-success/5 border-success/20">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium flex items-center justify-between">
+                <span>Total Receitas</span>
+                <TrendingUp className="h-4 w-4 text-success" />
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-success">
+                €{totalRevenue.toLocaleString("pt-PT", { minimumFractionDigits: 2 })}
+              </div>
+            </CardContent>
+          </Card>
+          {/* Card Despesas */}
+          <Card className="bg-gradient-to-br from-destructive/10 to-destructive/5 border-destructive/20">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium flex items-center justify-between">
+                <span>Total Despesas</span>
+                <TrendingDown className="h-4 w-4 text-destructive" />
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-destructive">
+                €{totalExpenses.toLocaleString("pt-PT", { minimumFractionDigits: 2 })}
+              </div>
+            </CardContent>
+          </Card>
+          {/* Card Saldo */}
+         <Card
+            className={`bg-gradient-to-br ${
+              totalRevenue - totalExpenses >= 0
+                ? "from-primary/10 to-primary/5 border-primary/20"
+                : "from-warning/10 to-warning/5 border-warning/20"
+            }`}
+          >
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium">Saldo</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div
+                className={`text-2xl font-bold ${
+                  totalRevenue - totalExpenses >= 0 ? "text-success" : "text-warning"
+                }`}
+              >
+                €
+                {(totalRevenue - totalExpenses).toLocaleString("pt-PT", {
+                  minimumFractionDigits: 2,
+                })}
+              </div>
+            </CardContent>
+          </Card>
       </div>
 
-      <Card>
+       {/* Tabela de Transações */}
+       <Card>
         <CardHeader>
           <CardTitle>Histórico de Transações</CardTitle>
         </CardHeader>
@@ -416,7 +481,7 @@ const Finances = () => {
                         }`}
                       >
                         {transaction.type === "revenue" ? "+" : "-"}€
-                        {transaction.amount.toLocaleString("pt-PT", {
+                        {(Number(transaction.amount) || 0).toLocaleString("pt-PT", { // Garante que é número
                           minimumFractionDigits: 2,
                         })}
                       </TableCell>
