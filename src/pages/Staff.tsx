@@ -179,7 +179,7 @@ const Staff = () => {
           phone: formData.phone,
           position: formData.position,
           department_id: formData.department_id || null,
-          salary: formData.salary ? parseFloat(formData.salary) : null,
+          salary: formData.salary ? (parseFloat(formData.salary) || null) : null,
           status: formData.status,
           user_id: authData.user.id,
         };

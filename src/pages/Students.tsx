@@ -69,6 +69,11 @@ const Students = () => {
       if (data) setStudents(data);
     } catch (error) {
       console.error("Error loading data:", error);
+      toast({
+        title: "Erro ao Carregar Dados",
+        description: "Não foi possível carregar a lista de alunos. Tente atualizar a página.",
+        variant: "destructive",
+      });
     } finally {
       setLoading(false);
     }
