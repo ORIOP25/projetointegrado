@@ -57,8 +57,8 @@ All colors MUST be HSL.
     --chart-1: 217 91% 35%;  /* Primary blue */
     --chart-2: 142 76% 36%;  /* Success green */
     --chart-3: 38 92% 50%;   /* Warning amber */
-    --chart-4: 280 65% 60%;  /* Purple */
-    --chart-5: 340 82% 52%;  /* Pink */
+    --chart-4: 280 65% 60%;   /* Purple */
+    --chart-5: 340 82% 52%;   /* Pink */
 
     /* Gradients */
     --gradient-primary: linear-gradient(135deg, hsl(217 91% 35%) 0%, hsl(217 91% 45%) 100%);
@@ -147,4 +147,36 @@ All colors MUST be HSL.
   body {
     @apply bg-background text-foreground;
   }
+}
+
+/* ---------------------------------------------
+Correção para esconder ícone nativo de password
+--------------------------------------------- 
+*/
+
+/* Esconde o ícone de revelação de password nativo do Edge/IE */
+input[type="password"]::-ms-reveal,
+input[type="password"]::-ms-clear {
+  display: none;
+}
+
+/* Tenta esconder o ícone de revelação de password nativo do Chrome/Safari (baseado em WebKit) */
+/* Nota: A eficácia disto pode variar entre versões do browser */
+input[type="password"]::-webkit-reveal,
+input[type="password"]::-webkit-contacts-auto-fill-button,
+input[type="password"]::-webkit-credentials-auto-fill-button {
+  appearance: none !important;
+  display: none !important; /* !important pode ser necessário para sobrepor estilos do browser */
+  visibility: hidden !important;
+}
+
+/* Garante que o nosso input tem espaço suficiente à direita para o nosso ícone personalizado */
+/* (Já adicionámos pr-10 no Auth.tsx, mas isto pode servir como fallback) */
+input[type="password"] {
+   padding-right: 2.5rem; /* Ajusta se necessário - 2.5rem = pr-10 do Tailwind */
+}
+
+/* Garante que o padding se mantém quando o tipo muda para text */
+input[type="text"].pr-10 {
+   padding-right: 2.5rem;
 }

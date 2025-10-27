@@ -7,7 +7,8 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { GraduationCap } from "lucide-react";
+// Importar os ícones Eye e EyeOff
+import { GraduationCap, Eye, EyeOff } from "lucide-react";
 
 const Auth = () => {
   const navigate = useNavigate();
@@ -17,6 +18,10 @@ const Auth = () => {
   const [loginPassword, setLoginPassword] = useState("");
   const [signupEmail, setSignupEmail] = useState("");
   const [signupPassword, setSignupPassword] = useState("");
+  // Adicionar estado para visibilidade da palavra-passe (login)
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
+  // Adicionar estado para visibilidade da palavra-passe (signup)
+  const [showSignupPassword, setShowSignupPassword] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -81,6 +86,16 @@ const Auth = () => {
     setLoading(false);
   };
 
+  // Função para alternar visibilidade da palavra-passe (login)
+  const toggleLoginPasswordVisibility = () => {
+    setShowLoginPassword(!showLoginPassword);
+  };
+
+  // Função para alternar visibilidade da palavra-passe (signup)
+  const toggleSignupPasswordVisibility = () => {
+    setShowSignupPassword(!showSignupPassword);
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted p-4">
       <Card className="w-full max-w-md shadow-[var(--shadow-card)]">
@@ -99,7 +114,7 @@ const Auth = () => {
               <TabsTrigger value="login">Entrar</TabsTrigger>
               <TabsTrigger value="signup">Registar</TabsTrigger>
             </TabsList>
-            
+
             <TabsContent value="login">
               <form onSubmit={handleLogin} className="space-y-4">
                 <div className="space-y-2">
@@ -113,22 +128,43 @@ const Auth = () => {
                     required
                   />
                 </div>
+                {/* Modificar o campo da palavra-passe (login) */}
                 <div className="space-y-2">
                   <Label htmlFor="login-password">Palavra-passe</Label>
-                  <Input
-                    id="login-password"
-                    type="password"
-                    value={loginPassword}
-                    onChange={(e) => setLoginPassword(e.target.value)}
-                    required
-                  />
+                  <div className="relative">
+                    <Input
+                      id="login-password"
+                      // Mudar o tipo dinamicamente
+                      type={showLoginPassword ? "text" : "password"}
+                      value={loginPassword}
+                      onChange={(e) => setLoginPassword(e.target.value)}
+                      required
+                      // Adicionar padding à direita para não sobrepor o ícone
+                      className="pr-10"
+                    />
+                    {/* Botão para alternar visibilidade */}
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 px-0"
+                      onClick={toggleLoginPasswordVisibility}
+                      aria-label={showLoginPassword ? "Esconder palavra-passe" : "Mostrar palavra-passe"}
+                    >
+                      {showLoginPassword ? (
+                        <EyeOff className="h-4 w-4" />
+                      ) : (
+                        <Eye className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </div>
                 </div>
                 <Button type="submit" className="w-full" disabled={loading}>
                   {loading ? "A entrar..." : "Entrar"}
                 </Button>
               </form>
             </TabsContent>
-            
+
             <TabsContent value="signup">
               <form onSubmit={handleSignup} className="space-y-4">
                 <div className="space-y-2">
@@ -142,16 +178,37 @@ const Auth = () => {
                     required
                   />
                 </div>
+                {/* Modificar o campo da palavra-passe (signup) */}
                 <div className="space-y-2">
                   <Label htmlFor="signup-password">Palavra-passe</Label>
-                  <Input
-                    id="signup-password"
-                    type="password"
-                    value={signupPassword}
-                    onChange={(e) => setSignupPassword(e.target.value)}
-                    required
-                    minLength={6}
-                  />
+                  <div className="relative">
+                    <Input
+                      id="signup-password"
+                      // Mudar o tipo dinamicamente
+                      type={showSignupPassword ? "text" : "password"}
+                      value={signupPassword}
+                      onChange={(e) => setSignupPassword(e.target.value)}
+                      required
+                      minLength={6}
+                      // Adicionar padding à direita
+                      className="pr-10"
+                    />
+                    {/* Botão para alternar visibilidade */}
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 px-0"
+                      onClick={toggleSignupPasswordVisibility}
+                      aria-label={showSignupPassword ? "Esconder palavra-passe" : "Mostrar palavra-passe"}
+                    >
+                      {showSignupPassword ? (
+                        <EyeOff className="h-4 w-4" />
+                      ) : (
+                        <Eye className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </div>
                 </div>
                 <Button type="submit" className="w-full" disabled={loading}>
                   {loading ? "A criar conta..." : "Criar conta"}
