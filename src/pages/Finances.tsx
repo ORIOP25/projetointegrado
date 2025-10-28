@@ -28,7 +28,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { Plus, Pencil, Trash2, TrendingUp, TrendingDown } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useUserRole } from "@/hooks/useUserRole";
@@ -49,7 +49,6 @@ const Finances = () => {
   const [loading, setLoading] = useState(true); // Começa true
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
-  const { toast } = useToast();
   const [formData, setFormData] = useState({
     type: "revenue",
     category: "",
@@ -80,11 +79,7 @@ const Finances = () => {
 
     } catch (error) {
       console.error("Error loading transactions:", error);
-      toast({ // Adiciona um toast de erro no fetch
-        title: "Erro ao Carregar Transações",
-        description: error instanceof Error ? error.message : "Ocorreu um erro desconhecido.",
-        variant: "destructive",
-      });
+      toast.error(`Erro ao Carregar Transações - ${error instanceof Error ? error.message : "Ocorreu um erro desconhecido."}`);
       setLoading(false); // Define loading como false também em caso de erro
     }
   };
@@ -169,10 +164,7 @@ const Finances = () => {
         }
         console.log("Update successful"); // DEBUG
 
-        toast({
-          title: "Transação atualizada",
-          description: "A transação foi atualizada com sucesso.",
-        });
+        toast.success("Transação atualizada com sucesso");
       } else {
         console.log("Inserting new transaction"); // DEBUG
         const { error } = await supabase.from("financial_transactions").insert([dataToSave]);
@@ -183,10 +175,7 @@ const Finances = () => {
         }
          console.log("Insert successful"); // DEBUG
 
-        toast({
-          title: "Transação criada",
-          description: "A transação foi criada com sucesso.",
-        });
+        toast.success("Transação criada com sucesso");
       }
 
       setDialogOpen(false);
@@ -196,11 +185,7 @@ const Finances = () => {
 
     } catch (error: any) {
       console.error("Error in handleSubmit catch block:", error); // DEBUG: Mostra qualquer erro capturado
-      toast({
-        title: "Erro ao guardar",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast.error(`Erro ao guardar - ${error.message}`);
       // Se ocorreu um erro DURANTE a submissão, volta a desativar o loading
       setLoading(false);
     }
@@ -230,18 +215,11 @@ const Finances = () => {
 
       if (error) throw error;
 
-      toast({
-        title: "Transação eliminada",
-        description: "A transação foi eliminada com sucesso.",
-      });
+      toast.success("Transação eliminada com sucesso");
       // setLoading(true); // Define loading para recarregar
       loadTransactions(); // Recarrega os dados
     } catch (error: any) {
-      toast({
-        title: "Erro ao eliminar",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast.error(`Erro ao eliminar - ${error.message}`);
       // setLoading(false); // Para caso adiciones setLoading(true) no início
     }
   };

@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Lightbulb, Loader2, Sparkles } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 
 import { useUserRole } from "@/hooks/useUserRole";
 
@@ -12,7 +12,6 @@ const Recommendations = () => {
   const [loading, setLoading] = useState(false);
   const [recommendations, setRecommendations] = useState<string>("");
   const [context, setContext] = useState<any>(null);
-  const { toast } = useToast();
   const { isGlobalAdmin } = useUserRole();
 
   // Redirect if not global admin
@@ -44,17 +43,10 @@ const Recommendations = () => {
       setRecommendations(data.recommendations);
       setContext(data.context);
 
-      toast({
-        title: "Recomendações geradas",
-        description: "As recomendações foram geradas com sucesso.",
-      });
+      toast.success("Recomendações geradas com sucesso");
     } catch (error: any) {
       console.error("Error generating recommendations:", error);
-      toast({
-        title: "Erro",
-        description: error.message || "Erro ao gerar recomendações. Tente novamente.",
-        variant: "destructive",
-      });
+      toast.error(`Erro - ${error.message || "Erro ao gerar recomendações. Tente novamente."}`);
     } finally {
       setLoading(false);
     }

@@ -6,13 +6,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 // Removidos imports de Tabs
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 // Importar apenas os ícones necessários
 import { GraduationCap, Eye, EyeOff } from "lucide-react";
 
 const Auth = () => {
   const navigate = useNavigate();
-  const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
@@ -51,19 +50,9 @@ const Auth = () => {
     });
 
     if (error) {
-      toast({
-        title: "Erro ao entrar",
-        description: error.message || "Verifique as suas credenciais.", // Mensagem mais genérica se necessário
-        variant: "destructive",
-      });
+      toast.error(`Erro ao entrar - ${error.message || "Verifique as suas credenciais."}`);
     } else {
-      // O redirecionamento será tratado pelo onAuthStateChange ou pelo getSession inicial
-      // Podemos remover o navigate daqui se quisermos depender apenas do listener
-      // navigate("/dashboard");
-       toast({
-         title: "Login bem-sucedido",
-         description: "A redirecionar para o dashboard...",
-       });
+      toast.success("Login bem-sucedido - A redirecionar para o dashboard...");
     }
 
     setLoading(false);

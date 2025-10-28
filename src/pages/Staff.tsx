@@ -28,7 +28,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -57,7 +57,6 @@ const Staff = () => {
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingStaff, setEditingStaff] = useState<StaffMember | null>(null);
-  const { toast } = useToast();
   const { isGlobalAdmin } = useUserRole();
 
   const [formData, setFormData] = useState({
@@ -132,10 +131,7 @@ const Staff = () => {
 
         if (error) throw error;
 
-        toast({
-          title: "Funcionário atualizado",
-          description: "O funcionário foi atualizado com sucesso.",
-        });
+        toast.success("Funcionário atualizado com sucesso");
       } else {
         // Create new staff member with user account
         if (!formData.email) {
@@ -174,21 +170,14 @@ const Staff = () => {
           throw new Error(data.error || "Falha ao criar funcionário");
         }
 
-        toast({
-          title: "Funcionário criado",
-          description: `O funcionário foi criado com sucesso. Credenciais de login criadas para ${formData.email}`,
-        });
+        toast.success(`Funcionário criado com sucesso. Credenciais de login criadas para ${formData.email}`);
       }
 
       setDialogOpen(false);
       resetForm();
       loadData();
     } catch (error: any) {
-      toast({
-        title: "Erro",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast.error(`Erro - ${error.message}`);
     } finally {
       setLoading(false);
     }
@@ -217,18 +206,11 @@ const Staff = () => {
 
       if (error) throw error;
 
-      toast({
-        title: "Funcionário eliminado",
-        description: "O funcionário foi eliminado com sucesso.",
-      });
+      toast.success("Funcionário eliminado com sucesso");
 
       loadData();
     } catch (error: any) {
-      toast({
-        title: "Erro",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast.error(`Erro - ${error.message}`);
     }
   };
 
@@ -248,21 +230,13 @@ const Staff = () => {
 
   const handleRoleChange = async (staffMember: StaffMember, newRole: string) => {
     if (!staffMember.user_id) {
-      toast({
-        title: "Erro",
-        description: "Este funcionário não tem conta de usuário associada.",
-        variant: "destructive",
-      });
+      toast.error("Este funcionário não tem conta de usuário associada.");
       return;
     }
 
     // Protect the super admin account
     if (staffMember.email === "admin@escola.pt" && newRole !== "global_admin") {
-      toast({
-        title: "Operação não permitida",
-        description: "O role do super admin não pode ser alterado.",
-        variant: "destructive",
-      });
+      toast.error("Operação não permitida - O role do super admin não pode ser alterado.");
       return;
     }
 
@@ -291,18 +265,11 @@ const Staff = () => {
         if (error) throw error;
       }
 
-      toast({
-        title: "Role atualizada",
-        description: `Role de ${staffMember.name} alterada para ${newRole === "global_admin" ? "Global Admin" : "Staff"}.`,
-      });
+      toast.success(`Role de ${staffMember.name} alterada para ${newRole === "global_admin" ? "Global Admin" : "Staff"}`);
 
       loadData();
     } catch (error: any) {
-      toast({
-        title: "Erro",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast.error(`Erro - ${error.message}`);
     }
   };
 

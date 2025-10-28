@@ -27,7 +27,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -47,7 +47,6 @@ const Students = () => {
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
-  const { toast } = useToast();
 
   const [formData, setFormData] = useState({
     name: "",
@@ -69,11 +68,7 @@ const Students = () => {
       if (data) setStudents(data);
     } catch (error) {
       console.error("Error loading data:", error);
-      toast({
-        title: "Erro ao Carregar Dados",
-        description: "Não foi possível carregar a lista de alunos. Tente atualizar a página.",
-        variant: "destructive",
-      });
+      toast.error("Erro ao Carregar Dados - Não foi possível carregar a lista de alunos. Tente atualizar a página.");
     } finally {
       setLoading(false);
     }
@@ -92,30 +87,20 @@ const Students = () => {
 
         if (error) throw error;
 
-        toast({
-          title: "Aluno atualizado",
-          description: "O aluno foi atualizado com sucesso.",
-        });
+        toast.success("Aluno atualizado com sucesso");
       } else {
         const { error } = await supabase.from("students").insert([formData]);
 
         if (error) throw error;
 
-        toast({
-          title: "Aluno criado",
-          description: "O aluno foi criado com sucesso.",
-        });
+        toast.success("Aluno criado com sucesso");
       }
 
       setDialogOpen(false);
       resetForm();
       loadData();
     } catch (error: any) {
-      toast({
-        title: "Erro",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast.error(`Erro - ${error.message}`);
     } finally {
       setLoading(false);
     }
@@ -141,18 +126,11 @@ const Students = () => {
 
       if (error) throw error;
 
-      toast({
-        title: "Aluno eliminado",
-        description: "O aluno foi eliminado com sucesso.",
-      });
+      toast.success("Aluno eliminado com sucesso");
 
       loadData();
     } catch (error: any) {
-      toast({
-        title: "Erro",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast.error(`Erro - ${error.message}`);
     }
   };
 
