@@ -146,62 +146,32 @@ const Staff = () => {
           throw new Error("A senha deve ter pelo menos 6 caracteres");
         }
 
-        // Get current session to restore later
-        const { data: { session: currentSession } } = await supabase.auth.getSession();
+        // Get current session token
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) {
+          throw new Error("Sessão não encontrada");
+        }
 
-        // 1. Create user in auth.users
-        const { data: authData, error: authError } = await supabase.auth.signUp({
-          email: formData.email,
-          password: formData.password,
-          options: {
-            emailRedirectTo: `${window.location.origin}/`,
-            data: {
-              full_name: formData.name,
-            },
+        // Call edge function to create staff user (does not affect current session)
+        const { data, error } = await supabase.functions.invoke('create-staff-user', {
+          body: {
+            email: formData.email,
+            password: formData.password,
+            name: formData.name,
+            phone: formData.phone,
+            position: formData.position,
+            department_id: formData.department_id || null,
+            salary: formData.salary,
+            status: formData.status,
           },
         });
 
-        if (authError) throw authError;
-        if (!authData.user) throw new Error("Falha ao criar usuário");
-
-        // Restore the original admin session
-        if (currentSession) {
-          await supabase.auth.setSession({
-            access_token: currentSession.access_token,
-            refresh_token: currentSession.refresh_token,
-          });
+        if (error) {
+          throw new Error(error.message || "Falha ao criar funcionário");
         }
 
-        // 2. Create staff record linked to user
-        const staffData = {
-          name: formData.name,
-          email: formData.email,
-          phone: formData.phone,
-          position: formData.position,
-          department_id: formData.department_id || null,
-          salary: formData.salary ? (parseFloat(formData.salary) || null) : null,
-          status: formData.status,
-          user_id: authData.user.id,
-        };
-
-        const { error: staffError } = await supabase.from("staff").insert([staffData]);
-
-        if (staffError) {
-          console.error("Failed to create staff record:", staffError);
-          throw new Error("Falha ao criar registro de funcionário: " + staffError.message);
-        }
-
-        // 3. Assign 'staff' role to the new user
-        const { error: roleError } = await supabase.from("user_roles").insert([
-          {
-            user_id: authData.user.id,
-            role: "staff",
-          },
-        ]);
-
-        if (roleError) {
-          console.error("Failed to assign role:", roleError);
-          // Continue anyway - admin can assign role later
+        if (!data.success) {
+          throw new Error(data.error || "Falha ao criar funcionário");
         }
 
         toast({
