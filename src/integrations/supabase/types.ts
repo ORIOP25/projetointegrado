@@ -14,6 +14,36 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_recommendations_feedback: {
+        Row: {
+          context_data: Json
+          created_at: string
+          feedback_text: string | null
+          id: string
+          rating: number
+          recommendations_text: string
+          user_id: string
+        }
+        Insert: {
+          context_data: Json
+          created_at?: string
+          feedback_text?: string | null
+          id?: string
+          rating: number
+          recommendations_text: string
+          user_id: string
+        }
+        Update: {
+          context_data?: Json
+          created_at?: string
+          feedback_text?: string | null
+          id?: string
+          rating?: number
+          recommendations_text?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       departments: {
         Row: {
           created_at: string | null
