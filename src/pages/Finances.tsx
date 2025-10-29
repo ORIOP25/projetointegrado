@@ -23,6 +23,16 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -70,6 +80,8 @@ const Finances = () => {
   const [loading, setLoading] = useState(true); // Começa true
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [transactionToDelete, setTransactionToDelete] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     type: "revenue",
     category: "",
@@ -222,23 +234,29 @@ const Finances = () => {
     setDialogOpen(true);
   };
 
- const handleDelete = async (id: string) => {
-    if (!confirm("Tem a certeza que deseja eliminar esta transação?")) return;
+  const handleDelete = (id: string) => {
+    setTransactionToDelete(id);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!transactionToDelete) return;
 
     try {
       const { error } = await supabase
         .from("financial_transactions")
         .delete()
-        .eq("id", id);
+        .eq("id", transactionToDelete);
 
       if (error) throw error;
 
       toast.success("Transação eliminada com sucesso");
-      // setLoading(true); // Define loading para recarregar
-      loadTransactions(); // Recarrega os dados
+      loadTransactions();
     } catch (error: any) {
       toast.error(getErrorMessage(error));
-      // setLoading(false); // Para caso adiciones setLoading(true) no início
+    } finally {
+      setDeleteDialogOpen(false);
+      setTransactionToDelete(null);
     }
   };
 
@@ -507,6 +525,23 @@ const Finances = () => {
           </div>
         </CardContent>
       </Card>
+
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar Eliminação</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem a certeza que deseja eliminar esta transação? Esta ação não pode ser revertida.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

@@ -22,6 +22,16 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -72,6 +82,8 @@ const Students = () => {
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [studentToDelete, setStudentToDelete] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
     name: "",
@@ -161,19 +173,26 @@ const Students = () => {
     setDialogOpen(true);
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("Tem a certeza que deseja eliminar este aluno?")) return;
+  const handleDelete = (id: string) => {
+    setStudentToDelete(id);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!studentToDelete) return;
 
     try {
-      const { error } = await supabase.from("students").delete().eq("id", id);
+      const { error } = await supabase.from("students").delete().eq("id", studentToDelete);
 
       if (error) throw error;
 
       toast.success("Aluno eliminado com sucesso");
-
       loadData();
     } catch (error: any) {
       toast.error(getErrorMessage(error));
+    } finally {
+      setDeleteDialogOpen(false);
+      setStudentToDelete(null);
     }
   };
 
@@ -355,6 +374,23 @@ const Students = () => {
           </div>
         </CardContent>
       </Card>
+
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar Eliminação</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem a certeza que deseja eliminar este aluno? Esta ação não pode ser revertida.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
