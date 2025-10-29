@@ -44,6 +44,10 @@ import { Plus, Pencil, Trash2, TrendingUp, TrendingDown } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useUserRole } from "@/hooks/useUserRole";
 import { z } from "zod";
+import { useTableSort } from "@/hooks/useTableSort";
+import { usePagination } from "@/hooks/usePagination";
+import { SortableTableHead } from "@/components/SortableTableHead";
+import { TablePagination } from "@/components/TablePagination";
 
 const financeSchema = z.object({
   type: z.enum(["revenue", "expense"], {
@@ -88,6 +92,17 @@ const Finances = () => {
     amount: "",
     description: "",
     transaction_date: new Date().toISOString().split("T")[0],
+  });
+
+  // Sorting and pagination
+  const { sortedData, sortKey, sortDirection, handleSort } = useTableSort({
+    data: transactions,
+    initialSortKey: "transaction_date" as keyof Transaction,
+    initialDirection: "desc",
+  });
+  const { paginatedData, currentPage, totalPages, nextPage, previousPage, goToPage, itemsPerPage, totalItems } = usePagination({
+    data: sortedData,
+    itemsPerPage: 10,
   });
 
   // Função para carregar dados
@@ -443,23 +458,48 @@ const Finances = () => {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Data</TableHead>
-                  <TableHead>Tipo</TableHead>
-                  <TableHead>Categoria</TableHead>
+                  <SortableTableHead
+                    column="transaction_date"
+                    label="Data"
+                    sortKey={sortKey}
+                    sortDirection={sortDirection}
+                    onSort={handleSort}
+                  />
+                  <SortableTableHead
+                    column="type"
+                    label="Tipo"
+                    sortKey={sortKey}
+                    sortDirection={sortDirection}
+                    onSort={handleSort}
+                  />
+                  <SortableTableHead
+                    column="category"
+                    label="Categoria"
+                    sortKey={sortKey}
+                    sortDirection={sortDirection}
+                    onSort={handleSort}
+                  />
                   <TableHead>Descrição</TableHead>
-                  <TableHead className="text-right">Valor</TableHead>
+                  <SortableTableHead
+                    column="amount"
+                    label="Valor"
+                    sortKey={sortKey}
+                    sortDirection={sortDirection}
+                    onSort={handleSort}
+                    className="text-right"
+                  />
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {transactions.length === 0 ? (
+                {paginatedData.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={6} className="text-center text-muted-foreground">
-                      Nenhuma transação registada
+                      {transactions.length === 0 ? "Nenhuma transação registada" : "Nenhum resultado encontrado"}
                     </TableCell>
                   </TableRow>
                 ) : (
-                  transactions.map((transaction) => (
+                  paginatedData.map((transaction) => (
                     <TableRow key={transaction.id}>
                       <TableCell>
                         {new Date(transaction.transaction_date).toLocaleDateString("pt-PT")}
@@ -523,6 +563,15 @@ const Finances = () => {
               </TableBody>
             </Table>
           </div>
+          <TablePagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalItems={totalItems}
+            itemsPerPage={itemsPerPage}
+            onPreviousPage={previousPage}
+            onNextPage={nextPage}
+            onGoToPage={goToPage}
+          />
         </CardContent>
       </Card>
 

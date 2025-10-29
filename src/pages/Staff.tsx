@@ -43,6 +43,10 @@ import { toast } from "sonner";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { z } from "zod";
+import { useTableSort } from "@/hooks/useTableSort";
+import { usePagination } from "@/hooks/usePagination";
+import { SortableTableHead } from "@/components/SortableTableHead";
+import { TablePagination } from "@/components/TablePagination";
 
 const staffSchema = z.object({
   name: z.string()
@@ -102,6 +106,16 @@ const Staff = () => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [staffToDelete, setStaffToDelete] = useState<string | null>(null);
   const { isGlobalAdmin } = useUserRole();
+
+  // Sorting and pagination
+  const { sortedData, sortKey, sortDirection, handleSort } = useTableSort({
+    data: staff,
+    initialSortKey: "name" as keyof StaffMember,
+  });
+  const { paginatedData, currentPage, totalPages, nextPage, previousPage, goToPage, itemsPerPage, totalItems } = usePagination({
+    data: sortedData,
+    itemsPerPage: 10,
+  });
 
   const [formData, setFormData] = useState({
     name: "",
@@ -498,24 +512,56 @@ const Staff = () => {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Nome</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Cargo</TableHead>
-                  {isGlobalAdmin && <TableHead>Salário</TableHead>}
+                  <SortableTableHead
+                    column="name"
+                    label="Nome"
+                    sortKey={sortKey}
+                    sortDirection={sortDirection}
+                    onSort={handleSort}
+                  />
+                  <SortableTableHead
+                    column="email"
+                    label="Email"
+                    sortKey={sortKey}
+                    sortDirection={sortDirection}
+                    onSort={handleSort}
+                  />
+                  <SortableTableHead
+                    column="position"
+                    label="Cargo"
+                    sortKey={sortKey}
+                    sortDirection={sortDirection}
+                    onSort={handleSort}
+                  />
+                  {isGlobalAdmin && (
+                    <SortableTableHead
+                      column="salary"
+                      label="Salário"
+                      sortKey={sortKey}
+                      sortDirection={sortDirection}
+                      onSort={handleSort}
+                    />
+                  )}
                   {isGlobalAdmin && <TableHead>Permissão</TableHead>}
-                  <TableHead>Estado</TableHead>
+                  <SortableTableHead
+                    column="status"
+                    label="Estado"
+                    sortKey={sortKey}
+                    sortDirection={sortDirection}
+                    onSort={handleSort}
+                  />
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {staff.length === 0 ? (
+                {paginatedData.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={isGlobalAdmin ? 7 : 5} className="text-center text-muted-foreground">
-                      Nenhum funcionário registado
+                      {staff.length === 0 ? "Nenhum funcionário registado" : "Nenhum resultado encontrado"}
                     </TableCell>
                   </TableRow>
                 ) : (
-                  staff.map((member) => (
+                  paginatedData.map((member) => (
                     <TableRow key={member.id}>
                       <TableCell className="font-medium">{member.name}</TableCell>
                       <TableCell>{member.email || "-"}</TableCell>
@@ -593,6 +639,15 @@ const Staff = () => {
               </TableBody>
             </Table>
           </div>
+          <TablePagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalItems={totalItems}
+            itemsPerPage={itemsPerPage}
+            onPreviousPage={previousPage}
+            onNextPage={nextPage}
+            onGoToPage={goToPage}
+          />
         </CardContent>
       </Card>
 

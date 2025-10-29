@@ -42,6 +42,10 @@ import { toast } from "sonner";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { z } from "zod";
+import { useTableSort } from "@/hooks/useTableSort";
+import { usePagination } from "@/hooks/usePagination";
+import { SortableTableHead } from "@/components/SortableTableHead";
+import { TablePagination } from "@/components/TablePagination";
 
 const studentSchema = z.object({
   name: z.string()
@@ -84,6 +88,16 @@ const Students = () => {
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [studentToDelete, setStudentToDelete] = useState<string | null>(null);
+
+  // Sorting and pagination
+  const { sortedData, sortKey, sortDirection, handleSort } = useTableSort({
+    data: students,
+    initialSortKey: "name" as keyof Student,
+  });
+  const { paginatedData, currentPage, totalPages, nextPage, previousPage, goToPage, itemsPerPage, totalItems } = usePagination({
+    data: sortedData,
+    itemsPerPage: 10,
+  });
 
   const [formData, setFormData] = useState({
     name: "",
@@ -309,23 +323,47 @@ const Students = () => {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Nome</TableHead>
-                  <TableHead>Email</TableHead>
+                  <SortableTableHead
+                    column="name"
+                    label="Nome"
+                    sortKey={sortKey}
+                    sortDirection={sortDirection}
+                    onSort={handleSort}
+                  />
+                  <SortableTableHead
+                    column="email"
+                    label="Email"
+                    sortKey={sortKey}
+                    sortDirection={sortDirection}
+                    onSort={handleSort}
+                  />
                   <TableHead>Telefone</TableHead>
-                  <TableHead>Curso</TableHead>
-                  <TableHead>Estado</TableHead>
+                  <SortableTableHead
+                    column="course"
+                    label="Curso"
+                    sortKey={sortKey}
+                    sortDirection={sortDirection}
+                    onSort={handleSort}
+                  />
+                  <SortableTableHead
+                    column="status"
+                    label="Estado"
+                    sortKey={sortKey}
+                    sortDirection={sortDirection}
+                    onSort={handleSort}
+                  />
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {students.length === 0 ? (
+                {paginatedData.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={6} className="text-center text-muted-foreground">
-                      Nenhum aluno registado
+                      {students.length === 0 ? "Nenhum aluno registado" : "Nenhum resultado encontrado"}
                     </TableCell>
                   </TableRow>
                 ) : (
-                  students.map((student) => (
+                  paginatedData.map((student) => (
                     <TableRow key={student.id}>
                       <TableCell className="font-medium">{student.name}</TableCell>
                       <TableCell>{student.email || "-"}</TableCell>
@@ -372,6 +410,15 @@ const Students = () => {
               </TableBody>
             </Table>
           </div>
+          <TablePagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalItems={totalItems}
+            itemsPerPage={itemsPerPage}
+            onPreviousPage={previousPage}
+            onNextPage={nextPage}
+            onGoToPage={goToPage}
+          />
         </CardContent>
       </Card>
 
