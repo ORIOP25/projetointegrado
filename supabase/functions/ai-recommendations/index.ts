@@ -157,7 +157,7 @@ Forneça recomendações práticas para melhorar a gestão desta instituição.`
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },
         ],
-        temperature: 0.7,
+        // Note: Gemini models don't support the temperature parameter
       }),
     });
 
