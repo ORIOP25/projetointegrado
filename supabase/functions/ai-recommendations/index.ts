@@ -12,11 +12,60 @@ serve(async (req) => {
   }
 
   try {
+    // Verificar autenticação
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: "Não autorizado - Token de autenticação necessário" }),
+        {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const lovableApiKey = Deno.env.get("LOVABLE_API_KEY")!;
 
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    // Criar cliente Supabase com service role para verificar permissões
+    const supabaseAdmin = createClient(supabaseUrl, supabaseKey);
+
+    // Extrair o token JWT
+    const token = authHeader.replace("Bearer ", "");
+    
+    // Verificar o usuário autenticado
+    const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
+    
+    if (authError || !user) {
+      return new Response(
+        JSON.stringify({ error: "Token de autenticação inválido" }),
+        {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    // Verificar se o usuário tem role de global_admin
+    const { data: roleData, error: roleError } = await supabaseAdmin
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (roleError || !roleData || roleData.role !== "global_admin") {
+      return new Response(
+        JSON.stringify({ error: "Acesso negado - Apenas Global Admins podem gerar recomendações" }),
+        {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    // Usar o mesmo cliente admin para operações de banco de dados
+    const supabase = supabaseAdmin;
 
     // Fetch all data from the database
     const [studentsRes, staffRes, transactionsRes] = await Promise.all([
