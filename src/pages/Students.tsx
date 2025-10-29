@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import { getErrorMessage } from "@/lib/errorHandler";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -172,7 +173,7 @@ const Students = () => {
 
       loadData();
     } catch (error: any) {
-      toast.error(`Erro - ${error.message}`);
+      toast.error(getErrorMessage(error));
     }
   };
 

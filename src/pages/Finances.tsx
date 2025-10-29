@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import { getErrorMessage } from "@/lib/errorHandler";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -99,7 +100,7 @@ const Finances = () => {
 
     } catch (error) {
       console.error("Error loading transactions:", error);
-      toast.error(`Erro ao Carregar Transações - ${error instanceof Error ? error.message : "Ocorreu um erro desconhecido."}`);
+      toast.error(getErrorMessage(error));
       setLoading(false); // Define loading como false também em caso de erro
     }
   };
@@ -236,7 +237,7 @@ const Finances = () => {
       // setLoading(true); // Define loading para recarregar
       loadTransactions(); // Recarrega os dados
     } catch (error: any) {
-      toast.error(`Erro ao eliminar - ${error.message}`);
+      toast.error(getErrorMessage(error));
       // setLoading(false); // Para caso adiciones setLoading(true) no início
     }
   };

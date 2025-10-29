@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import { getErrorMessage } from "@/lib/errorHandler";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Lightbulb, Loader2, Sparkles } from "lucide-react";
@@ -46,7 +47,7 @@ const Recommendations = () => {
       toast.success("Recomendações geradas com sucesso");
     } catch (error: any) {
       console.error("Error generating recommendations:", error);
-      toast.error(`Erro - ${error.message || "Erro ao gerar recomendações. Tente novamente."}`);
+      toast.error(getErrorMessage(error));
     } finally {
       setLoading(false);
     }

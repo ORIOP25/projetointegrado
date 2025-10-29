@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import { getErrorMessage } from "@/lib/errorHandler";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -50,7 +51,7 @@ const Auth = () => {
     });
 
     if (error) {
-      toast.error(`Erro ao entrar - ${error.message || "Verifique as suas credenciais."}`);
+      toast.error(getErrorMessage(error));
     } else {
       toast.success("Login bem-sucedido - A redirecionar para o dashboard...");
     }

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import { getErrorMessage } from "@/lib/errorHandler";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useUserRole } from "@/hooks/useUserRole";
@@ -221,7 +222,7 @@ const Staff = () => {
         const firstError = error.errors[0];
         toast.error(firstError.message);
       } else {
-        toast.error(error.message || "Erro ao guardar. Por favor, tente novamente.");
+        toast.error(getErrorMessage(error));
       }
     } finally {
       setLoading(false);
@@ -255,7 +256,7 @@ const Staff = () => {
 
       loadData();
     } catch (error: any) {
-      toast.error(`Erro - ${error.message}`);
+      toast.error(getErrorMessage(error));
     }
   };
 
@@ -314,7 +315,7 @@ const Staff = () => {
 
       loadData();
     } catch (error: any) {
-      toast.error(`Erro - ${error.message}`);
+      toast.error(getErrorMessage(error));
     }
   };
 
