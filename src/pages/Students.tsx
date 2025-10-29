@@ -30,6 +30,30 @@ import {
 import { toast } from "sonner";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { z } from "zod";
+
+const studentSchema = z.object({
+  name: z.string()
+    .min(1, "Nome é obrigatório")
+    .max(100, "Nome não pode ter mais de 100 caracteres")
+    .trim(),
+  email: z.string()
+    .max(255, "Email não pode ter mais de 255 caracteres")
+    .optional()
+    .refine((val) => !val || z.string().email().safeParse(val).success, "Email inválido")
+    .or(z.literal("")),
+  phone: z.string()
+    .max(20, "Telefone não pode ter mais de 20 caracteres")
+    .optional()
+    .or(z.literal("")),
+  course: z.string()
+    .max(100, "Curso não pode ter mais de 100 caracteres")
+    .optional()
+    .or(z.literal("")),
+  status: z.enum(["active", "inactive", "graduated"], {
+    errorMap: () => ({ message: "Estado inválido" })
+  }),
+});
 
 interface Student {
   id: string;
@@ -79,17 +103,29 @@ const Students = () => {
     setLoading(true);
 
     try {
+      // Validar dados com zod
+      const validatedData = studentSchema.parse(formData);
+
+      // Preparar dados para o Supabase
+      const dataToSave = {
+        name: validatedData.name,
+        email: validatedData.email || null,
+        phone: validatedData.phone || null,
+        course: validatedData.course || null,
+        status: validatedData.status,
+      };
+
       if (editingStudent) {
         const { error } = await supabase
           .from("students")
-          .update(formData)
+          .update(dataToSave)
           .eq("id", editingStudent.id);
 
         if (error) throw error;
 
         toast.success("Aluno atualizado com sucesso");
       } else {
-        const { error } = await supabase.from("students").insert([formData]);
+        const { error } = await supabase.from("students").insert([dataToSave]);
 
         if (error) throw error;
 
@@ -100,7 +136,13 @@ const Students = () => {
       resetForm();
       loadData();
     } catch (error: any) {
-      toast.error(`Erro - ${error.message}`);
+      if (error instanceof z.ZodError) {
+        // Mostrar erro de validação
+        const firstError = error.errors[0];
+        toast.error(firstError.message);
+      } else {
+        toast.error("Erro ao guardar. Por favor, tente novamente.");
+      }
     } finally {
       setLoading(false);
     }

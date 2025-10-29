@@ -32,6 +32,26 @@ import { toast } from "sonner";
 import { Plus, Pencil, Trash2, TrendingUp, TrendingDown } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useUserRole } from "@/hooks/useUserRole";
+import { z } from "zod";
+
+const financeSchema = z.object({
+  type: z.enum(["revenue", "expense"], {
+    errorMap: () => ({ message: "Tipo inválido" })
+  }),
+  category: z.string()
+    .min(1, "Categoria é obrigatória")
+    .max(100, "Categoria não pode ter mais de 100 caracteres")
+    .trim(),
+  amount: z.string()
+    .refine((val) => !isNaN(parseFloat(val)), "Valor inválido")
+    .refine((val) => parseFloat(val) > 0, "Valor deve ser maior que zero"),
+  description: z.string()
+    .max(500, "Descrição não pode ter mais de 500 caracteres")
+    .optional()
+    .or(z.literal("")),
+  transaction_date: z.string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Data inválida"),
+});
 
 interface Transaction {
   id: string;
@@ -138,42 +158,35 @@ const Finances = () => {
   // Funções de manipulação (só são relevantes se for admin)
    const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log("handleSubmit called"); // DEBUG: Verifica se a função é chamada
 
     // Define loading como true no início da submissão
     setLoading(true);
 
     try {
+      // Validar dados com zod
+      const validatedData = financeSchema.parse(formData);
+
       const dataToSave = {
-        ...formData,
-        amount: parseFloat(formData.amount) || 0, // Garante que é número
-        // Certifica-te que não há mais referências a department_id aqui
+        type: validatedData.type,
+        category: validatedData.category,
+        amount: parseFloat(validatedData.amount),
+        description: validatedData.description || null,
+        transaction_date: validatedData.transaction_date,
       };
-      console.log("Data to save:", dataToSave); // DEBUG: Verifica os dados a serem guardados
 
       if (editingTransaction) {
-        console.log("Updating transaction:", editingTransaction.id); // DEBUG
         const { error } = await supabase
           .from("financial_transactions")
           .update(dataToSave)
           .eq("id", editingTransaction.id);
 
-        if (error) {
-           console.error("Supabase update error:", error); // DEBUG: Mostra erro específico do Supabase
-           throw error; // Lança o erro para o catch
-        }
-        console.log("Update successful"); // DEBUG
+        if (error) throw error;
 
         toast.success("Transação atualizada com sucesso");
       } else {
-        console.log("Inserting new transaction"); // DEBUG
         const { error } = await supabase.from("financial_transactions").insert([dataToSave]);
 
-        if (error) {
-          console.error("Supabase insert error:", error); // DEBUG: Mostra erro específico do Supabase
-          throw error; // Lança o erro para o catch
-        }
-         console.log("Insert successful"); // DEBUG
+        if (error) throw error;
 
         toast.success("Transação criada com sucesso");
       }
@@ -184,12 +197,16 @@ const Finances = () => {
       loadTransactions();
 
     } catch (error: any) {
-      console.error("Error in handleSubmit catch block:", error); // DEBUG: Mostra qualquer erro capturado
-      toast.error(`Erro ao guardar - ${error.message}`);
+      if (error instanceof z.ZodError) {
+        // Mostrar erro de validação
+        const firstError = error.errors[0];
+        toast.error(firstError.message);
+      } else {
+        toast.error("Erro ao guardar. Por favor, tente novamente.");
+      }
       // Se ocorreu um erro DURANTE a submissão, volta a desativar o loading
       setLoading(false);
     }
-    // Não é necessário um finally aqui se loadTransactions já trata do setLoading(false)
   };
 
   const handleEdit = (transaction: Transaction) => {

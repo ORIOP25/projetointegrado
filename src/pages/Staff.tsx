@@ -31,6 +31,37 @@ import {
 import { toast } from "sonner";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { z } from "zod";
+
+const staffSchema = z.object({
+  name: z.string()
+    .min(1, "Nome é obrigatório")
+    .max(100, "Nome não pode ter mais de 100 caracteres")
+    .trim(),
+  email: z.string()
+    .email("Email inválido")
+    .max(255, "Email não pode ter mais de 255 caracteres"),
+  phone: z.string()
+    .max(20, "Telefone não pode ter mais de 20 caracteres")
+    .optional()
+    .or(z.literal("")),
+  position: z.string()
+    .min(1, "Cargo é obrigatório")
+    .max(100, "Cargo não pode ter mais de 100 caracteres")
+    .trim(),
+  salary: z.string()
+    .optional()
+    .or(z.literal(""))
+    .refine((val) => !val || !isNaN(parseFloat(val)), "Salário inválido")
+    .refine((val) => !val || parseFloat(val) >= 0, "Salário não pode ser negativo"),
+  status: z.enum(["active", "inactive", "terminated"], {
+    errorMap: () => ({ message: "Estado inválido" })
+  }),
+  password: z.string()
+    .min(8, "Senha deve ter pelo menos 8 caracteres")
+    .optional()
+    .or(z.literal("")),
+});
 
 interface StaffMember {
   id: string;
@@ -113,15 +144,18 @@ const Staff = () => {
 
     try {
       if (editingStaff) {
+        // Validar dados (sem senha para edição)
+        const validatedData = staffSchema.omit({ password: true }).parse(formData);
+
         // Update existing staff
         const data = {
-          name: formData.name,
-          email: formData.email,
-          phone: formData.phone,
-          position: formData.position,
+          name: validatedData.name,
+          email: validatedData.email,
+          phone: validatedData.phone || null,
+          position: validatedData.position,
           department_id: formData.department_id || null,
-          salary: formData.salary ? parseFloat(formData.salary) : null,
-          status: formData.status,
+          salary: validatedData.salary ? parseFloat(validatedData.salary) : null,
+          status: validatedData.status,
         };
 
         const { error } = await supabase
@@ -133,13 +167,18 @@ const Staff = () => {
 
         toast.success("Funcionário atualizado com sucesso");
       } else {
-        // Create new staff member with user account
-        if (!formData.email) {
+        // Validar dados completos (incluindo senha)
+        const validatedData = staffSchema.parse({
+          ...formData,
+          password: formData.password || "",
+        });
+
+        if (!validatedData.email) {
           throw new Error("Email é obrigatório para criar credenciais de login");
         }
 
-        if (!formData.password || formData.password.length < 6) {
-          throw new Error("A senha deve ter pelo menos 6 caracteres");
+        if (!validatedData.password || validatedData.password.length < 8) {
+          throw new Error("A senha deve ter pelo menos 8 caracteres");
         }
 
         // Get current session token
@@ -151,14 +190,14 @@ const Staff = () => {
         // Call edge function to create staff user (does not affect current session)
         const { data, error } = await supabase.functions.invoke('create-staff-user', {
           body: {
-            email: formData.email,
-            password: formData.password,
-            name: formData.name,
-            phone: formData.phone,
-            position: formData.position,
+            email: validatedData.email,
+            password: validatedData.password,
+            name: validatedData.name,
+            phone: validatedData.phone || null,
+            position: validatedData.position,
             department_id: formData.department_id || null,
-            salary: formData.salary,
-            status: formData.status,
+            salary: validatedData.salary ? parseFloat(validatedData.salary) : null,
+            status: validatedData.status,
           },
         });
 
@@ -170,14 +209,20 @@ const Staff = () => {
           throw new Error(data.error || "Falha ao criar funcionário");
         }
 
-        toast.success(`Funcionário criado com sucesso. Credenciais de login criadas para ${formData.email}`);
+        toast.success(`Funcionário criado com sucesso. Credenciais de login criadas para ${validatedData.email}`);
       }
 
       setDialogOpen(false);
       resetForm();
       loadData();
     } catch (error: any) {
-      toast.error(`Erro - ${error.message}`);
+      if (error instanceof z.ZodError) {
+        // Mostrar erro de validação
+        const firstError = error.errors[0];
+        toast.error(firstError.message);
+      } else {
+        toast.error(error.message || "Erro ao guardar. Por favor, tente novamente.");
+      }
     } finally {
       setLoading(false);
     }
@@ -332,10 +377,10 @@ const Staff = () => {
                     value={formData.password}
                     onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                     required
-                    minLength={6}
+                    minLength={8}
                   />
                   <p className="text-xs text-muted-foreground">
-                    Mínimo 6 caracteres. O funcionário poderá alterar após o primeiro login.
+                    Mínimo 8 caracteres. O funcionário poderá alterar após o primeiro login.
                   </p>
                 </div>
               )}
