@@ -39,7 +39,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2 } from "lucide-react"; // Adicionado Loader2
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { z } from "zod";
 import { useTableSort } from "@/hooks/useTableSort";
@@ -83,13 +83,13 @@ interface Student {
 
 const Students = () => {
   const [students, setStudents] = useState<Student[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true); // Estado para carregamento inicial/total
+  const [isSubmitting, setIsSubmitting] = useState(false); // Novo estado para submissão
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [studentToDelete, setStudentToDelete] = useState<string | null>(null);
 
-  // Sorting and pagination
   const { sortedData, sortKey, sortDirection, handleSort } = useTableSort({
     data: students,
     initialSortKey: "name" as keyof Student,
@@ -112,6 +112,7 @@ const Students = () => {
   }, []);
 
   const loadData = async () => {
+    // Não definir loading aqui se já for true
     try {
       const { data, error } = await supabase.from("students").select("*").order("name");
 
@@ -119,21 +120,18 @@ const Students = () => {
       if (data) setStudents(data);
     } catch (error) {
       console.error("Error loading data:", error);
-      toast.error("Erro ao Carregar Dados - Não foi possível carregar a lista de alunos. Tente atualizar a página.");
+      toast.error(getErrorMessage(error)); // Usar getErrorMessage
     } finally {
-      setLoading(false);
+      setLoading(false); // Define loading como false após sucesso ou erro
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
+    setIsSubmitting(true); // Inicia submissão
 
     try {
-      // Validar dados com zod
       const validatedData = studentSchema.parse(formData);
-
-      // Preparar dados para o Supabase
       const dataToSave = {
         name: validatedData.name,
         email: validatedData.email || null,
@@ -147,33 +145,32 @@ const Students = () => {
           .from("students")
           .update(dataToSave)
           .eq("id", editingStudent.id);
-
         if (error) throw error;
-
         toast.success("Aluno atualizado com sucesso");
       } else {
         const { error } = await supabase.from("students").insert([dataToSave]);
-
         if (error) throw error;
-
         toast.success("Aluno criado com sucesso");
       }
 
       setDialogOpen(false);
       resetForm();
+      // Recarrega dados
+      setLoading(true); // Ativa loading geral antes de recarregar
       loadData();
+
     } catch (error: any) {
       if (error instanceof z.ZodError) {
-        // Mostrar erro de validação
         const firstError = error.errors[0];
         toast.error(firstError.message);
       } else {
-        toast.error("Erro ao guardar. Por favor, tente novamente.");
+        toast.error(getErrorMessage(error)); // Usa getErrorMessage
       }
     } finally {
-      setLoading(false);
+      setIsSubmitting(false); // Termina submissão
     }
   };
+
 
   const handleEdit = (student: Student) => {
     setEditingStudent(student);
@@ -194,13 +191,15 @@ const Students = () => {
 
   const confirmDelete = async () => {
     if (!studentToDelete) return;
-
+    // Adicionar estado de loading para delete, se desejado
     try {
       const { error } = await supabase.from("students").delete().eq("id", studentToDelete);
 
       if (error) throw error;
 
       toast.success("Aluno eliminado com sucesso");
+      // Recarrega dados
+      setLoading(true);
       loadData();
     } catch (error: any) {
       toast.error(getErrorMessage(error));
@@ -220,6 +219,14 @@ const Students = () => {
     });
     setEditingStudent(null);
   };
+
+  if (loading) { // Mostrar loader apenas durante o carregamento inicial/total
+     return (
+       <div className="flex items-center justify-center min-h-[50vh]">
+         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+       </div>
+     );
+  }
 
   return (
     <div>
@@ -247,49 +254,24 @@ const Students = () => {
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="name">Nome *</Label>
-                <Input
-                  id="name"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  required
-                />
+                <Input id="name" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} required disabled={isSubmitting} />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                />
+                <Input id="email" type="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} disabled={isSubmitting} />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="phone">Telefone</Label>
-                <Input
-                  id="phone"
-                  value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                />
+                <Input id="phone" value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} disabled={isSubmitting} />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="course">Curso</Label>
-                <Input
-                  id="course"
-                  value={formData.course}
-                  onChange={(e) => setFormData({ ...formData, course: e.target.value })}
-                />
+                <Input id="course" value={formData.course} onChange={(e) => setFormData({ ...formData, course: e.target.value })} disabled={isSubmitting} />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="status">Estado</Label>
-                <Select
-                  value={formData.status}
-                  onValueChange={(value) =>
-                    setFormData({ ...formData, status: value })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
+                <Select value={formData.status} onValueChange={(value) => setFormData({ ...formData, status: value })} disabled={isSubmitting}>
+                  <SelectTrigger> <SelectValue /> </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="active">Ativo</SelectItem>
                     <SelectItem value="inactive">Inativo</SelectItem>
@@ -298,15 +280,17 @@ const Students = () => {
                 </Select>
               </div>
               <DialogFooter>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setDialogOpen(false)}
-                >
-                  Cancelar
-                </Button>
-                <Button type="submit" disabled={loading}>
-                  {loading ? "A guardar..." : "Guardar"}
+                <Button type="button" variant="outline" onClick={() => setDialogOpen(false)} disabled={isSubmitting}> Cancelar </Button>
+                 {/* Botão de submissão com estado de loading */}
+                <Button type="submit" disabled={isSubmitting}>
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      A guardar...
+                    </>
+                  ) : (
+                    "Guardar"
+                  )}
                 </Button>
               </DialogFooter>
             </form>
@@ -314,6 +298,7 @@ const Students = () => {
         </Dialog>
       </div>
 
+       {/* Tabela de Alunos */}
       <Card>
         <CardHeader>
           <CardTitle>Lista de Alunos</CardTitle>
@@ -323,37 +308,13 @@ const Students = () => {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <SortableTableHead
-                    column="name"
-                    label="Nome"
-                    sortKey={sortKey}
-                    sortDirection={sortDirection}
-                    onSort={handleSort}
-                  />
-                  <SortableTableHead
-                    column="email"
-                    label="Email"
-                    sortKey={sortKey}
-                    sortDirection={sortDirection}
-                    onSort={handleSort}
-                  />
-                  <TableHead>Telefone</TableHead>
-                  <SortableTableHead
-                    column="course"
-                    label="Curso"
-                    sortKey={sortKey}
-                    sortDirection={sortDirection}
-                    onSort={handleSort}
-                  />
-                  <SortableTableHead
-                    column="status"
-                    label="Estado"
-                    sortKey={sortKey}
-                    sortDirection={sortDirection}
-                    onSort={handleSort}
-                  />
-                  <TableHead className="text-right">Ações</TableHead>
-                </TableRow>
+                   <SortableTableHead column="name" label="Nome" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} />
+                   <SortableTableHead column="email" label="Email" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} />
+                   <TableHead>Telefone</TableHead>
+                   <SortableTableHead column="course" label="Curso" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} />
+                   <SortableTableHead column="status" label="Estado" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} />
+                   <TableHead className="text-right">Ações</TableHead>
+                 </TableRow>
               </TableHeader>
               <TableBody>
                 {paginatedData.length === 0 ? (
@@ -370,38 +331,14 @@ const Students = () => {
                       <TableCell>{student.phone || "-"}</TableCell>
                       <TableCell>{student.course || "-"}</TableCell>
                       <TableCell>
-                        <span
-                          className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                            student.status === "active"
-                              ? "bg-success/10 text-success"
-                              : student.status === "graduated"
-                              ? "bg-primary/10 text-primary"
-                              : "bg-muted text-muted-foreground"
-                          }`}
-                        >
-                          {student.status === "active"
-                            ? "Ativo"
-                            : student.status === "graduated"
-                            ? "Graduado"
-                            : "Inativo"}
+                        <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${ student.status === "active" ? "bg-success/10 text-success" : student.status === "graduated" ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground" }`}>
+                          {student.status === "active" ? "Ativo" : student.status === "graduated" ? "Graduado" : "Inativo"}
                         </span>
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleEdit(student)}
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleDelete(student.id)}
-                          >
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
+                          <Button variant="ghost" size="sm" onClick={() => handleEdit(student)}> <Pencil className="h-4 w-4" /> </Button>
+                          <Button variant="ghost" size="sm" onClick={() => handleDelete(student.id)}> <Trash2 className="h-4 w-4 text-destructive" /> </Button>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -411,17 +348,13 @@ const Students = () => {
             </Table>
           </div>
           <TablePagination
-            currentPage={currentPage}
-            totalPages={totalPages}
-            totalItems={totalItems}
-            itemsPerPage={itemsPerPage}
-            onPreviousPage={previousPage}
-            onNextPage={nextPage}
-            onGoToPage={goToPage}
+            currentPage={currentPage} totalPages={totalPages} totalItems={totalItems} itemsPerPage={itemsPerPage}
+            onPreviousPage={previousPage} onNextPage={nextPage} onGoToPage={goToPage}
           />
         </CardContent>
       </Card>
 
+      {/* AlertDialog para Confirmação de Eliminação */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>

@@ -40,7 +40,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2 } from "lucide-react"; // Adicionado Loader2
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { z } from "zod";
 import { useTableSort } from "@/hooks/useTableSort";
@@ -100,14 +100,14 @@ interface Department {
 const Staff = () => {
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true); // Estado para carregamento inicial/total
+  const [isSubmitting, setIsSubmitting] = useState(false); // Novo estado para submissão
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingStaff, setEditingStaff] = useState<StaffMember | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [staffToDelete, setStaffToDelete] = useState<string | null>(null);
   const { isGlobalAdmin } = useUserRole();
 
-  // Sorting and pagination
   const { sortedData, sortKey, sortDirection, handleSort } = useTableSort({
     data: staff,
     initialSortKey: "name" as keyof StaffMember,
@@ -133,6 +133,7 @@ const Staff = () => {
   }, []);
 
   const loadData = async () => {
+    // Não definir loading aqui se já for true
     try {
       const [staffRes, departmentsRes] = await Promise.all([
         supabase.from("staff").select("*").order("name"),
@@ -140,7 +141,6 @@ const Staff = () => {
       ]);
 
       if (staffRes.data) {
-        // Load roles for each staff member
         const staffWithRoles = await Promise.all(
           staffRes.data.map(async (member) => {
             if (member.user_id) {
@@ -149,7 +149,6 @@ const Staff = () => {
                 .select("role")
                 .eq("user_id", member.user_id)
                 .maybeSingle();
-              
               return { ...member, role: roleData?.role || null };
             }
             return { ...member, role: null };
@@ -160,21 +159,20 @@ const Staff = () => {
       if (departmentsRes.data) setDepartments(departmentsRes.data);
     } catch (error) {
       console.error("Error loading data:", error);
+      toast.error(getErrorMessage(error)); // Usar getErrorMessage
     } finally {
-      setLoading(false);
+      setLoading(false); // Define loading como false após sucesso ou erro
     }
   };
 
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
+    setIsSubmitting(true); // Inicia submissão
 
     try {
       if (editingStaff) {
-        // Validar dados (sem senha para edição)
         const validatedData = staffSchema.omit({ password: true }).parse(formData);
-
-        // Update existing staff
         const data = {
           name: validatedData.name,
           email: validatedData.email,
@@ -191,10 +189,8 @@ const Staff = () => {
           .eq("id", editingStaff.id);
 
         if (error) throw error;
-
         toast.success("Funcionário atualizado com sucesso");
       } else {
-        // Validar dados completos (incluindo senha)
         const validatedData = staffSchema.parse({
           ...formData,
           password: formData.password || "",
@@ -203,18 +199,15 @@ const Staff = () => {
         if (!validatedData.email) {
           throw new Error("Email é obrigatório para criar credenciais de login");
         }
-
         if (!validatedData.password || validatedData.password.length < 8) {
           throw new Error("A senha deve ter pelo menos 8 caracteres");
         }
 
-        // Get current session token
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) {
           throw new Error("Sessão não encontrada");
         }
 
-        // Call edge function to create staff user (does not affect current session)
         const { data, error } = await supabase.functions.invoke('create-staff-user', {
           body: {
             email: validatedData.email,
@@ -231,29 +224,30 @@ const Staff = () => {
         if (error) {
           throw new Error(error.message || "Falha ao criar funcionário");
         }
-
         if (!data.success) {
           throw new Error(data.error || "Falha ao criar funcionário");
         }
-
         toast.success(`Funcionário criado com sucesso. Credenciais de login criadas para ${validatedData.email}`);
       }
 
       setDialogOpen(false);
       resetForm();
+      // Recarrega dados
+      setLoading(true); // Ativa loading geral antes de recarregar
       loadData();
+
     } catch (error: any) {
       if (error instanceof z.ZodError) {
-        // Mostrar erro de validação
         const firstError = error.errors[0];
         toast.error(firstError.message);
       } else {
         toast.error(getErrorMessage(error));
       }
     } finally {
-      setLoading(false);
+      setIsSubmitting(false); // Termina submissão
     }
   };
+
 
   const handleEdit = (staffMember: StaffMember) => {
     setEditingStaff(staffMember);
@@ -265,7 +259,7 @@ const Staff = () => {
       department_id: staffMember.department_id || "",
       salary: staffMember.salary?.toString() || "",
       status: staffMember.status,
-      password: "", // Not used when editing
+      password: "",
     });
     setDialogOpen(true);
   };
@@ -277,13 +271,15 @@ const Staff = () => {
 
   const confirmDelete = async () => {
     if (!staffToDelete) return;
-
+    // Adicionar estado de loading para delete, se desejado
     try {
       const { error } = await supabase.from("staff").delete().eq("id", staffToDelete);
 
       if (error) throw error;
 
       toast.success("Funcionário eliminado com sucesso");
+      // Recarrega dados
+      setLoading(true);
       loadData();
     } catch (error: any) {
       toast.error(getErrorMessage(error));
@@ -312,15 +308,12 @@ const Staff = () => {
       toast.error("Este funcionário não tem conta de usuário associada.");
       return;
     }
-
-    // Protect the super admin account
     if (staffMember.email === "admin@escola.pt" && newRole !== "global_admin") {
       toast.error("Operação não permitida - O role do super admin não pode ser alterado.");
       return;
     }
-
+    // Adicionar estado de loading específico para esta ação, se demorar
     try {
-      // Check if user already has a role
       const { data: existingRole } = await supabase
         .from("user_roles")
         .select("*")
@@ -328,29 +321,34 @@ const Staff = () => {
         .maybeSingle();
 
       if (existingRole) {
-        // Update existing role
         const { error } = await supabase
           .from("user_roles")
           .update({ role: newRole as any })
           .eq("user_id", staffMember.user_id);
-
         if (error) throw error;
       } else {
-        // Insert new role
         const { error } = await supabase
           .from("user_roles")
           .insert([{ user_id: staffMember.user_id, role: newRole as any }]);
-
         if (error) throw error;
       }
-
       toast.success(`Role de ${staffMember.name} alterada para ${newRole === "global_admin" ? "Global Admin" : "Staff"}`);
-
+      // Recarrega dados
+      setLoading(true);
       loadData();
     } catch (error: any) {
       toast.error(getErrorMessage(error));
     }
   };
+
+
+  if (loading) { // Mostrar loader apenas durante o carregamento inicial/total
+     return (
+       <div className="flex items-center justify-center min-h-[50vh]">
+         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+       </div>
+     );
+  }
 
   return (
     <div>
@@ -367,142 +365,87 @@ const Staff = () => {
                 Adicionar Funcionário
               </Button>
             </DialogTrigger>
-          <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>
-                {editingStaff ? "Editar Funcionário" : "Novo Funcionário"}
-              </DialogTitle>
-              <DialogDescription>
-                Preencha os dados do funcionário
-              </DialogDescription>
-            </DialogHeader>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="name">Nome *</Label>
-                <Input
-                  id="name"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="email">Email {!editingStaff && "*"}</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  required={!editingStaff}
-                  disabled={editingStaff !== null}
-                />
+            <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>
+                  {editingStaff ? "Editar Funcionário" : "Novo Funcionário"}
+                </DialogTitle>
+                <DialogDescription>
+                  Preencha os dados do funcionário
+                </DialogDescription>
+              </DialogHeader>
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="name">Nome *</Label>
+                  <Input id="name" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} required disabled={isSubmitting} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email {!editingStaff && "*"}</Label>
+                  <Input id="email" type="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} required={!editingStaff} disabled={editingStaff !== null || isSubmitting} />
+                  {!editingStaff && ( <p className="text-xs text-muted-foreground"> Usado para criar credenciais de login </p> )}
+                </div>
                 {!editingStaff && (
-                  <p className="text-xs text-muted-foreground">
-                    Usado para criar credenciais de login
-                  </p>
+                  <div className="space-y-2">
+                    <Label htmlFor="password">Senha Inicial *</Label>
+                    <Input id="password" type="password" value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })} required minLength={8} disabled={isSubmitting} />
+                    <p className="text-xs text-muted-foreground"> Mínimo 8 caracteres. O funcionário poderá alterar após o primeiro login. </p>
+                  </div>
                 )}
-              </div>
-              {!editingStaff && (
                 <div className="space-y-2">
-                  <Label htmlFor="password">Senha Inicial *</Label>
-                  <Input
-                    id="password"
-                    type="password"
-                    value={formData.password}
-                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                    required
-                    minLength={8}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Mínimo 8 caracteres. O funcionário poderá alterar após o primeiro login.
-                  </p>
+                  <Label htmlFor="phone">Telefone</Label>
+                  <Input id="phone" value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} disabled={isSubmitting} />
                 </div>
-              )}
-              <div className="space-y-2">
-                <Label htmlFor="phone">Telefone</Label>
-                <Input
-                  id="phone"
-                  value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="position">Cargo *</Label>
-                <Input
-                  id="position"
-                  value={formData.position}
-                  onChange={(e) => setFormData({ ...formData, position: e.target.value })}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="department">Departamento</Label>
-                <Select
-                  value={formData.department_id}
-                  onValueChange={(value) =>
-                    setFormData({ ...formData, department_id: value })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecionar departamento" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {departments.map((dept) => (
-                      <SelectItem key={dept.id} value={dept.id}>
-                        {dept.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              {isGlobalAdmin && (
                 <div className="space-y-2">
-                  <Label htmlFor="salary">Salário (€)</Label>
-                  <Input
-                    id="salary"
-                    type="number"
-                    step="0.01"
-                    value={formData.salary}
-                    onChange={(e) => setFormData({ ...formData, salary: e.target.value })}
-                  />
+                  <Label htmlFor="position">Cargo *</Label>
+                  <Input id="position" value={formData.position} onChange={(e) => setFormData({ ...formData, position: e.target.value })} required disabled={isSubmitting} />
                 </div>
-              )}
-              <div className="space-y-2">
-                <Label htmlFor="status">Estado</Label>
-                <Select
-                  value={formData.status}
-                  onValueChange={(value) =>
-                    setFormData({ ...formData, status: value })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="active">Ativo</SelectItem>
-                    <SelectItem value="inactive">Inativo</SelectItem>
-                    <SelectItem value="terminated">Terminado</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <DialogFooter>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setDialogOpen(false)}
-                >
-                  Cancelar
-                </Button>
-                <Button type="submit" disabled={loading}>
-                  {loading ? "A guardar..." : "Guardar"}
-                </Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
+                <div className="space-y-2">
+                  <Label htmlFor="department">Departamento</Label>
+                  <Select value={formData.department_id} onValueChange={(value) => setFormData({ ...formData, department_id: value })} disabled={isSubmitting}>
+                    <SelectTrigger> <SelectValue placeholder="Selecionar departamento" /> </SelectTrigger>
+                    <SelectContent>
+                      {departments.map((dept) => ( <SelectItem key={dept.id} value={dept.id}> {dept.name} </SelectItem> ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                {isGlobalAdmin && (
+                  <div className="space-y-2">
+                    <Label htmlFor="salary">Salário (€)</Label>
+                    <Input id="salary" type="number" step="0.01" value={formData.salary} onChange={(e) => setFormData({ ...formData, salary: e.target.value })} disabled={isSubmitting} />
+                  </div>
+                )}
+                <div className="space-y-2">
+                  <Label htmlFor="status">Estado</Label>
+                  <Select value={formData.status} onValueChange={(value) => setFormData({ ...formData, status: value })} disabled={isSubmitting}>
+                    <SelectTrigger> <SelectValue /> </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="active">Ativo</SelectItem>
+                      <SelectItem value="inactive">Inativo</SelectItem>
+                      <SelectItem value="terminated">Terminado</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <DialogFooter>
+                  <Button type="button" variant="outline" onClick={() => setDialogOpen(false)} disabled={isSubmitting}> Cancelar </Button>
+                  {/* Botão de submissão com estado de loading */}
+                  <Button type="submit" disabled={isSubmitting}>
+                    {isSubmitting ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        A guardar...
+                      </>
+                    ) : (
+                      "Guardar"
+                    )}
+                  </Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
         )}
       </div>
 
+       {/* Tabela de Funcionários */}
       <Card>
         <CardHeader>
           <CardTitle>Lista de Funcionários</CardTitle>
@@ -512,46 +455,14 @@ const Staff = () => {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <SortableTableHead
-                    column="name"
-                    label="Nome"
-                    sortKey={sortKey}
-                    sortDirection={sortDirection}
-                    onSort={handleSort}
-                  />
-                  <SortableTableHead
-                    column="email"
-                    label="Email"
-                    sortKey={sortKey}
-                    sortDirection={sortDirection}
-                    onSort={handleSort}
-                  />
-                  <SortableTableHead
-                    column="position"
-                    label="Cargo"
-                    sortKey={sortKey}
-                    sortDirection={sortDirection}
-                    onSort={handleSort}
-                  />
-                  {isGlobalAdmin && (
-                    <SortableTableHead
-                      column="salary"
-                      label="Salário"
-                      sortKey={sortKey}
-                      sortDirection={sortDirection}
-                      onSort={handleSort}
-                    />
-                  )}
-                  {isGlobalAdmin && <TableHead>Permissão</TableHead>}
-                  <SortableTableHead
-                    column="status"
-                    label="Estado"
-                    sortKey={sortKey}
-                    sortDirection={sortDirection}
-                    onSort={handleSort}
-                  />
-                  <TableHead className="text-right">Ações</TableHead>
-                </TableRow>
+                   <SortableTableHead column="name" label="Nome" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} />
+                   <SortableTableHead column="email" label="Email" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} />
+                   <SortableTableHead column="position" label="Cargo" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} />
+                   {isGlobalAdmin && ( <SortableTableHead column="salary" label="Salário" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} /> )}
+                   {isGlobalAdmin && <TableHead>Permissão</TableHead>}
+                   <SortableTableHead column="status" label="Estado" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} />
+                   <TableHead className="text-right">Ações</TableHead>
+                 </TableRow>
               </TableHeader>
               <TableBody>
                 {paginatedData.length === 0 ? (
@@ -566,13 +477,7 @@ const Staff = () => {
                       <TableCell className="font-medium">{member.name}</TableCell>
                       <TableCell>{member.email || "-"}</TableCell>
                       <TableCell>{member.position}</TableCell>
-                      {isGlobalAdmin && (
-                        <TableCell>
-                          {member.salary
-                            ? `€${member.salary.toLocaleString("pt-PT", { minimumFractionDigits: 2 })}`
-                            : "-"}
-                        </TableCell>
-                      )}
+                      {isGlobalAdmin && ( <TableCell> {member.salary ? `€${member.salary.toLocaleString("pt-PT", { minimumFractionDigits: 2 })}` : "-"} </TableCell> )}
                       {isGlobalAdmin && (
                         <TableCell>
                           {member.user_id ? (
@@ -582,56 +487,29 @@ const Staff = () => {
                                 Global Admin (Protegido)
                               </span>
                             ) : (
-                              <Select
-                                value={member.role || "staff"}
-                                onValueChange={(value) => handleRoleChange(member, value)}
-                              >
-                                <SelectTrigger className="w-[140px]">
-                                  <SelectValue />
-                                </SelectTrigger>
+                              <Select value={member.role || "staff"} onValueChange={(value) => handleRoleChange(member, value)}>
+                                <SelectTrigger className="w-[140px]"> <SelectValue /> </SelectTrigger>
                                 <SelectContent>
                                   <SelectItem value="staff">Staff</SelectItem>
                                   <SelectItem value="global_admin">Global Admin</SelectItem>
                                 </SelectContent>
                               </Select>
                             )
-                          ) : (
-                            <span className="text-muted-foreground text-sm">Sem conta</span>
-                          )}
+                          ) : ( <span className="text-muted-foreground text-sm">Sem conta</span> )}
                         </TableCell>
                       )}
                       <TableCell>
-                        <span
-                          className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                            member.status === "active"
-                              ? "bg-success/10 text-success"
-                              : "bg-muted text-muted-foreground"
-                          }`}
-                        >
+                        <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${ member.status === "active" ? "bg-success/10 text-success" : "bg-muted text-muted-foreground" }`}>
                           {member.status === "active" ? "Ativo" : member.status === "terminated" ? "Terminado" : "Inativo"}
                         </span>
                       </TableCell>
                       <TableCell className="text-right">
                         {isGlobalAdmin ? (
                           <div className="flex justify-end gap-2">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleEdit(member)}
-                            >
-                              <Pencil className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleDelete(member.id)}
-                            >
-                              <Trash2 className="h-4 w-4 text-destructive" />
-                            </Button>
+                            <Button variant="ghost" size="sm" onClick={() => handleEdit(member)}> <Pencil className="h-4 w-4" /> </Button>
+                            <Button variant="ghost" size="sm" onClick={() => handleDelete(member.id)}> <Trash2 className="h-4 w-4 text-destructive" /> </Button>
                           </div>
-                        ) : (
-                          <span className="text-muted-foreground text-sm">-</span>
-                        )}
+                        ) : ( <span className="text-muted-foreground text-sm">-</span> )}
                       </TableCell>
                     </TableRow>
                   ))
@@ -639,18 +517,14 @@ const Staff = () => {
               </TableBody>
             </Table>
           </div>
-          <TablePagination
-            currentPage={currentPage}
-            totalPages={totalPages}
-            totalItems={totalItems}
-            itemsPerPage={itemsPerPage}
-            onPreviousPage={previousPage}
-            onNextPage={nextPage}
-            onGoToPage={goToPage}
+           <TablePagination
+            currentPage={currentPage} totalPages={totalPages} totalItems={totalItems} itemsPerPage={itemsPerPage}
+            onPreviousPage={previousPage} onNextPage={nextPage} onGoToPage={goToPage}
           />
         </CardContent>
       </Card>
 
+      {/* AlertDialog para Confirmação de Eliminação */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>

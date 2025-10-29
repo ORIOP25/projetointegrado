@@ -6,36 +6,30 @@ import { getErrorMessage } from "@/lib/errorHandler";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-// Removidos imports de Tabs
 import { toast } from "sonner";
-// Importar apenas os ícones necessários
-import { GraduationCap, Eye, EyeOff } from "lucide-react";
+import { GraduationCap, Eye, EyeOff, Loader2 } from "lucide-react"; // Adicionado Loader2
 
 const Auth = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
-  // Estado para visibilidade da palavra-passe (login)
   const [showLoginPassword, setShowLoginPassword] = useState(false);
-  // Estados de signup removidos
 
   useEffect(() => {
-    // Verifica se já existe uma sessão ativa ao carregar a página
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
-        // Se houver sessão, redireciona para o dashboard
         navigate("/dashboard");
       }
     });
-    // Adiciona listener para mudanças no estado de autenticação (login/logout)
     const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+      // Nota: Não verificamos o status do staff aqui, apenas se há uma sessão.
+      // A verificação do status é feita *durante* a tentativa de login.
       if (session) {
         navigate("/dashboard");
       }
     });
 
-    // Limpa o listener quando o componente é desmontado
     return () => {
       authListener?.subscription.unsubscribe();
     };
@@ -45,34 +39,78 @@ const Auth = () => {
     e.preventDefault();
     setLoading(true);
 
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data: loginData, error: loginError } = await supabase.auth.signInWithPassword({
       email: loginEmail,
       password: loginPassword,
     });
 
-    if (error) {
-      toast.error(getErrorMessage(error));
-    } else {
-      toast.success("Login bem-sucedido - A redirecionar para o dashboard...");
+    if (loginError) {
+      toast.error(getErrorMessage(loginError));
+      setLoading(false);
+      return; // Interrompe a função se o login falhar
     }
 
-    setLoading(false);
+    // Se o login foi bem-sucedido (sem erro), verificar o status do staff
+    if (loginData.user) {
+      try {
+        const { data: staffData, error: staffError } = await supabase
+          .from("staff")
+          .select("status")
+          .eq("user_id", loginData.user.id)
+          .single(); // Usar single() pois deve haver apenas um registo staff por user_id
+
+        if (staffError) {
+           // Se não encontrar o staff ou houver outro erro, faz logout e informa
+          console.error("Erro ao buscar dados do staff:", staffError);
+          await supabase.auth.signOut(); // Faz logout da sessão criada
+          toast.error("Erro ao verificar o estado da sua conta. Contacte o administrador.");
+          setLoading(false);
+          return;
+        }
+
+        if (staffData && staffData.status !== 'active') {
+          // Se o staff for encontrado mas não estiver ativo, faz logout e informa
+          await supabase.auth.signOut(); // Faz logout da sessão criada
+          toast.error("A sua conta está inativa ou terminada. Contacte o administrador.");
+          setLoading(false);
+          return;
+        }
+
+        // Se o staff está ativo, o login é permitido
+        toast.success("Login bem-sucedido - A redirecionar para o dashboard...");
+        // A navegação será tratada pelo onAuthStateChange no useEffect
+
+      } catch (fetchError) {
+         // Erro genérico na busca do staff
+        console.error("Erro inesperado ao verificar status:", fetchError);
+        await supabase.auth.signOut(); // Garante logout em caso de erro inesperado
+        toast.error("Ocorreu um erro ao verificar a sua conta.");
+        setLoading(false);
+        return;
+      }
+    } else {
+      // Caso improvável onde não há erro mas não há user (melhor tratar)
+      toast.error("Ocorreu um erro inesperado durante o login.");
+    }
+
+
+    // setLoading(false) é definido dentro dos blocos de erro ou após a verificação bem-sucedida (implicitamente, pois a navegação ocorre)
+     // No caso de sucesso, a navegação tira o utilizador desta página,
+     // então definir setLoading(false) explicitamente aqui pode não ser necessário,
+     // mas adicionamos nos caminhos de erro para garantir que o botão é reativado.
+     // Se a navegação não ocorrer imediatamente, pode ser útil descomentar a linha abaixo.
+     // setLoading(false);
   };
 
-  // Função handleSignup removida
 
-  // Função para alternar visibilidade da palavra-passe (login)
   const toggleLoginPasswordVisibility = () => {
     setShowLoginPassword(!showLoginPassword);
   };
 
-  // Função toggleSignupPasswordVisibility removida
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted p-4">
-      {/* Card principal */}
       <Card className="w-full max-w-md shadow-[var(--shadow-card)]">
-        {/* Cabeçalho do Card */}
         <CardHeader className="space-y-1 text-center">
           <div className="flex justify-center mb-4">
             <div className="p-3 bg-primary rounded-xl">
@@ -82,10 +120,8 @@ const Auth = () => {
           <CardTitle className="text-2xl font-bold">Sistema de Gestão Escolar</CardTitle>
           <CardDescription>Insira as suas credenciais para aceder</CardDescription>
         </CardHeader>
-        {/* Conteúdo do Card - Apenas o formulário de Login */}
         <CardContent>
           <form onSubmit={handleLogin} className="space-y-4">
-            {/* Campo Email */}
             <div className="space-y-2">
               <Label htmlFor="login-email">Email</Label>
               <Input
@@ -95,24 +131,23 @@ const Auth = () => {
                 value={loginEmail}
                 onChange={(e) => setLoginEmail(e.target.value)}
                 required
-                autoComplete="email" // Ajuda o browser a preencher
+                autoComplete="email"
+                disabled={loading} // Desativar campos durante o loading
               />
             </div>
-            {/* Campo Palavra-passe */}
             <div className="space-y-2">
               <Label htmlFor="login-password">Palavra-passe</Label>
               <div className="relative">
                 <Input
                   id="login-password"
-                  // Tipo dinâmico para mostrar/esconder
                   type={showLoginPassword ? "text" : "password"}
                   value={loginPassword}
                   onChange={(e) => setLoginPassword(e.target.value)}
                   required
-                  autoComplete="current-password" // Ajuda o browser a preencher
-                  className="pr-10" // Padding para o ícone
+                  autoComplete="current-password"
+                  className="pr-10"
+                  disabled={loading} // Desativar campos durante o loading
                 />
-                {/* Botão para alternar visibilidade */}
                 <Button
                   type="button"
                   variant="ghost"
@@ -120,6 +155,7 @@ const Auth = () => {
                   className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 px-0"
                   onClick={toggleLoginPasswordVisibility}
                   aria-label={showLoginPassword ? "Esconder palavra-passe" : "Mostrar palavra-passe"}
+                  disabled={loading} // Desativar botão durante o loading
                 >
                   {showLoginPassword ? (
                     <EyeOff className="h-4 w-4" />
@@ -129,9 +165,15 @@ const Auth = () => {
                 </Button>
               </div>
             </div>
-            {/* Botão de Submissão */}
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "A entrar..." : "Entrar"}
+            <Button type="submit" className="w-full gap-2" disabled={loading}>
+              {loading ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                   A entrar...
+                </>
+               ) : (
+                 "Entrar"
+               )}
             </Button>
           </form>
         </CardContent>

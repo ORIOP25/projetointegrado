@@ -40,7 +40,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, TrendingUp, TrendingDown } from "lucide-react";
+import { Plus, Pencil, Trash2, TrendingUp, TrendingDown, DollarSign, Loader2 } from "lucide-react"; // Adicionado Loader2
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useUserRole } from "@/hooks/useUserRole";
 import { z } from "zod";
@@ -72,16 +72,16 @@ interface Transaction {
   id: string;
   type: string;
   category: string;
-  amount: number; // Supabase deve retornar number para DECIMAL
+  amount: number;
   description: string | null;
   transaction_date: string;
 }
 
 const Finances = () => {
-  // Hooks no Top Level - OK
   const { isGlobalAdmin } = useUserRole();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [loading, setLoading] = useState(true); // Começa true
+  const [loading, setLoading] = useState(true); // Estado para carregamento inicial/total
+  const [isSubmitting, setIsSubmitting] = useState(false); // Novo estado para submissão do formulário
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -94,7 +94,6 @@ const Finances = () => {
     transaction_date: new Date().toISOString().split("T")[0],
   });
 
-  // Sorting and pagination
   const { sortedData, sortKey, sortDirection, handleSort } = useTableSort({
     data: transactions,
     initialSortKey: "transaction_date" as keyof Transaction,
@@ -105,25 +104,17 @@ const Finances = () => {
     itemsPerPage: 10,
   });
 
-  // Função para carregar dados
   const loadTransactions = async () => {
-    // Não definir loading para true aqui, já começa como true
+    // Não definir loading aqui se já for true
     try {
       const { data, error } = await supabase
         .from("financial_transactions")
         .select("*")
         .order("transaction_date", { ascending: false });
 
-      if (error) {
-        throw error; // Propaga o erro para o catch
-      }
-
-      // Atualiza o estado apenas se houver dados
-      if (data) {
-        setTransactions(data);
-      }
-      // Define loading como false apenas após sucesso (com ou sem dados)
-      setLoading(false);
+      if (error) throw error;
+      if (data) setTransactions(data);
+      setLoading(false); // Define loading como false após sucesso
 
     } catch (error) {
       console.error("Error loading transactions:", error);
@@ -132,20 +123,16 @@ const Finances = () => {
     }
   };
 
-
-  // useEffect
   useEffect(() => {
     if (isGlobalAdmin) {
-       // A função loadTransactions agora lida com setLoading internamente
-       loadTransactions();
+       loadTransactions(); // Carrega dados na montagem
     } else {
-      // Se não for admin, definir loading como false imediatamente
-      setLoading(false);
+      setLoading(false); // Define loading como false se não for admin
     }
-  }, [isGlobalAdmin]); // Dependência correta
+  }, [isGlobalAdmin]);
 
-  // Verificação de permissão DEPOIS dos Hooks
-  if (!isGlobalAdmin && !loading) { // Só mostra o erro se não estiver loading e não for admin
+  // Restante do código do componente...
+  if (!isGlobalAdmin && !loading) {
     return (
       <div className="flex items-center justify-center min-h-[50vh]">
         <Card className="max-w-md">
@@ -163,8 +150,7 @@ const Finances = () => {
     );
   }
 
-  // Se ainda estiver a carregar (inicialmente ou durante o fetch), mostra um loader
-  if (loading) {
+   if (loading) { // Mostrar loader apenas durante o carregamento inicial/total
      return (
        <div className="flex items-center justify-center min-h-[50vh]">
          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
@@ -172,26 +158,19 @@ const Finances = () => {
      );
   }
 
-
   // Cálculos (apenas se for admin e não estiver loading)
-  // Reforço nos cálculos para evitar NaN
   const totalRevenue = transactions
     .filter((t) => t.type === "revenue")
     .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
-
   const totalExpenses = transactions
     .filter((t) => t.type === "expense")
     .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
 
-  // Funções de manipulação (só são relevantes se for admin)
-   const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    // Define loading como true no início da submissão
-    setLoading(true);
+    setIsSubmitting(true); // Inicia a submissão
 
     try {
-      // Validar dados com zod
       const validatedData = financeSchema.parse(formData);
 
       const dataToSave = {
@@ -209,40 +188,39 @@ const Finances = () => {
           .eq("id", editingTransaction.id);
 
         if (error) throw error;
-
         toast.success("Transação atualizada com sucesso");
       } else {
         const { error } = await supabase.from("financial_transactions").insert([dataToSave]);
 
         if (error) throw error;
-
         toast.success("Transação criada com sucesso");
       }
 
       setDialogOpen(false);
       resetForm();
-      // Chama loadTransactions para recarregar. Ele vai gerir o setLoading(false)
+      // Recarrega os dados (setLoading será gerido dentro de loadTransactions)
+      setLoading(true); // Ativa o loading geral antes de recarregar
       loadTransactions();
 
     } catch (error: any) {
       if (error instanceof z.ZodError) {
-        // Mostrar erro de validação
         const firstError = error.errors[0];
         toast.error(firstError.message);
       } else {
-        toast.error("Erro ao guardar. Por favor, tente novamente.");
+        toast.error(getErrorMessage(error)); // Usa getErrorMessage aqui também
       }
-      // Se ocorreu um erro DURANTE a submissão, volta a desativar o loading
-      setLoading(false);
+    } finally {
+      setIsSubmitting(false); // Termina a submissão
     }
   };
+
 
   const handleEdit = (transaction: Transaction) => {
     setEditingTransaction(transaction);
     setFormData({
       type: transaction.type,
       category: transaction.category,
-      amount: transaction.amount.toString(), // Mantém como string no form
+      amount: transaction.amount.toString(),
       description: transaction.description || "",
       transaction_date: transaction.transaction_date,
     });
@@ -256,7 +234,7 @@ const Finances = () => {
 
   const confirmDelete = async () => {
     if (!transactionToDelete) return;
-
+    // Adicionar estado de loading para a ação de apagar, se desejado
     try {
       const { error } = await supabase
         .from("financial_transactions")
@@ -266,6 +244,8 @@ const Finances = () => {
       if (error) throw error;
 
       toast.success("Transação eliminada com sucesso");
+      // Recarrega os dados
+      setLoading(true);
       loadTransactions();
     } catch (error: any) {
       toast.error(getErrorMessage(error));
@@ -274,7 +254,6 @@ const Finances = () => {
       setTransactionToDelete(null);
     }
   };
-
 
   const resetForm = () => {
     setFormData({
@@ -288,7 +267,6 @@ const Finances = () => {
   };
 
 
-  // JSX da página (só renderiza se for admin e não estiver a carregar)
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
@@ -319,6 +297,7 @@ const Finances = () => {
                 <Select
                   value={formData.type}
                   onValueChange={(value) => setFormData({ ...formData, type: value })}
+                  disabled={isSubmitting} // Desabilitar campos durante submissão
                 >
                   <SelectTrigger>
                     <SelectValue />
@@ -337,6 +316,7 @@ const Finances = () => {
                   onChange={(e) => setFormData({ ...formData, category: e.target.value })}
                   placeholder="Ex: Propinas, Salários, Manutenção..."
                   required
+                  disabled={isSubmitting}
                 />
               </div>
               <div className="space-y-2">
@@ -348,6 +328,7 @@ const Finances = () => {
                   value={formData.amount}
                   onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
                   required
+                  disabled={isSubmitting}
                 />
               </div>
               <div className="space-y-2">
@@ -360,6 +341,7 @@ const Finances = () => {
                     setFormData({ ...formData, transaction_date: e.target.value })
                   }
                   required
+                  disabled={isSubmitting}
                 />
               </div>
               <div className="space-y-2">
@@ -371,6 +353,7 @@ const Finances = () => {
                     setFormData({ ...formData, description: e.target.value })
                   }
                   placeholder="Informações adicionais..."
+                  disabled={isSubmitting}
                 />
               </div>
               <DialogFooter>
@@ -378,13 +361,20 @@ const Finances = () => {
                   type="button"
                   variant="outline"
                   onClick={() => setDialogOpen(false)}
+                  disabled={isSubmitting} // Desabilitar Cancelar também
                 >
                   Cancelar
                 </Button>
-                {/* Opcional: Adicionar estado de loading ao botão de guardar */}
-                <Button type="submit" /* disabled={isSubmitting} */>
-                  {/* {isSubmitting ? "A guardar..." : "Guardar"} */}
-                  Guardar
+                {/* Botão de submissão com estado de loading */}
+                <Button type="submit" disabled={isSubmitting}>
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      A guardar...
+                    </>
+                  ) : (
+                    "Guardar"
+                  )}
                 </Button>
               </DialogFooter>
             </form>
@@ -392,8 +382,8 @@ const Finances = () => {
         </Dialog>
       </div>
 
-      {/* Cards de Resumo Financeiro */}
-      <div className="grid gap-4 md:grid-cols-3 mb-6">
+       {/* Cards de Resumo Financeiro */}
+       <div className="grid gap-4 md:grid-cols-3 mb-6">
          {/* Card Receitas */}
          <Card className="bg-gradient-to-br from-success/10 to-success/5 border-success/20">
             <CardHeader className="pb-3">
@@ -448,8 +438,8 @@ const Finances = () => {
           </Card>
       </div>
 
-       {/* Tabela de Transações */}
-       <Card>
+      {/* Tabela de Transações */}
+      <Card>
         <CardHeader>
           <CardTitle>Histórico de Transações</CardTitle>
         </CardHeader>
@@ -459,34 +449,17 @@ const Finances = () => {
               <TableHeader>
                 <TableRow>
                   <SortableTableHead
-                    column="transaction_date"
-                    label="Data"
-                    sortKey={sortKey}
-                    sortDirection={sortDirection}
-                    onSort={handleSort}
+                    column="transaction_date" label="Data" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort}
                   />
                   <SortableTableHead
-                    column="type"
-                    label="Tipo"
-                    sortKey={sortKey}
-                    sortDirection={sortDirection}
-                    onSort={handleSort}
+                    column="type" label="Tipo" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort}
                   />
                   <SortableTableHead
-                    column="category"
-                    label="Categoria"
-                    sortKey={sortKey}
-                    sortDirection={sortDirection}
-                    onSort={handleSort}
+                    column="category" label="Categoria" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort}
                   />
                   <TableHead>Descrição</TableHead>
                   <SortableTableHead
-                    column="amount"
-                    label="Valor"
-                    sortKey={sortKey}
-                    sortDirection={sortDirection}
-                    onSort={handleSort}
-                    className="text-right"
+                    column="amount" label="Valor" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} className="text-right"
                   />
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
@@ -512,17 +485,8 @@ const Finances = () => {
                               : "bg-destructive/10 text-destructive"
                           }`}
                         >
-                          {transaction.type === "revenue" ? (
-                            <>
-                              <TrendingUp className="h-3 w-3" />
-                              Receita
-                            </>
-                          ) : (
-                            <>
-                              <TrendingDown className="h-3 w-3" />
-                              Despesa
-                            </>
-                          )}
+                          {transaction.type === "revenue" ? ( <TrendingUp className="h-3 w-3" /> ) : ( <TrendingDown className="h-3 w-3" /> )}
+                          {transaction.type === "revenue" ? "Receita" : "Despesa"}
                         </span>
                       </TableCell>
                       <TableCell className="font-medium">{transaction.category}</TableCell>
@@ -535,24 +499,14 @@ const Finances = () => {
                         }`}
                       >
                         {transaction.type === "revenue" ? "+" : "-"}€
-                        {(Number(transaction.amount) || 0).toLocaleString("pt-PT", { // Garante que é número
-                          minimumFractionDigits: 2,
-                        })}
+                        {(Number(transaction.amount) || 0).toLocaleString("pt-PT", { minimumFractionDigits: 2 })}
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleEdit(transaction)}
-                          >
+                          <Button variant="ghost" size="sm" onClick={() => handleEdit(transaction)}>
                             <Pencil className="h-4 w-4" />
                           </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleDelete(transaction.id)}
-                          >
+                          <Button variant="ghost" size="sm" onClick={() => handleDelete(transaction.id)}>
                             <Trash2 className="h-4 w-4 text-destructive" />
                           </Button>
                         </div>
@@ -564,17 +518,13 @@ const Finances = () => {
             </Table>
           </div>
           <TablePagination
-            currentPage={currentPage}
-            totalPages={totalPages}
-            totalItems={totalItems}
-            itemsPerPage={itemsPerPage}
-            onPreviousPage={previousPage}
-            onNextPage={nextPage}
-            onGoToPage={goToPage}
+            currentPage={currentPage} totalPages={totalPages} totalItems={totalItems} itemsPerPage={itemsPerPage}
+            onPreviousPage={previousPage} onNextPage={nextPage} onGoToPage={goToPage}
           />
         </CardContent>
       </Card>
 
+      {/* AlertDialog para Confirmação de Eliminação */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
