@@ -1,4 +1,6 @@
 import React, { useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -9,6 +11,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import {
   Select,
   SelectContent,
@@ -17,39 +20,22 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+import { feedbackSchema, type FeedbackFormData } from "@/lib/validations/feedback";
 
 export const FeedbackDialog = React.memo(function FeedbackDialog() {
   const [open, setOpen] = useState(false);
-  const [category, setCategory] = useState<string>("");
-  const [message, setMessage] = useState("");
-  const [submitting, setSubmitting] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const form = useForm<FeedbackFormData>({
+    resolver: zodResolver(feedbackSchema),
+    defaultValues: {
+      category: undefined,
+      message: "",
+    },
+  });
 
-    if (!category || !message.trim()) {
-      toast({
-        title: "Erro",
-        description: "Por favor, preencha todos os campos.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (message.trim().length > 2000) {
-      toast({
-        title: "Erro",
-        description: "A mensagem não pode ter mais de 2000 caracteres.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setSubmitting(true);
-
+  const handleSubmit = async (values: FeedbackFormData) => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       
@@ -66,8 +52,8 @@ export const FeedbackDialog = React.memo(function FeedbackDialog() {
         .from("feedback")
         .insert({
           user_id: user.id,
-          category: category,
-          message: message.trim(),
+          category: values.category,
+          message: values.message,
         });
 
       if (error) throw error;
@@ -78,8 +64,7 @@ export const FeedbackDialog = React.memo(function FeedbackDialog() {
       });
 
       // Reset form and close dialog
-      setCategory("");
-      setMessage("");
+      form.reset();
       setOpen(false);
     } catch (error) {
       console.error("Error submitting feedback:", error);
@@ -88,8 +73,6 @@ export const FeedbackDialog = React.memo(function FeedbackDialog() {
         description: "Não foi possível enviar o feedback. Tente novamente.",
         variant: "destructive",
       });
-    } finally {
-      setSubmitting(false);
     }
   };
 
@@ -112,48 +95,66 @@ export const FeedbackDialog = React.memo(function FeedbackDialog() {
             Partilhe bugs, sugestões ou outros comentários sobre a aplicação.
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4 mt-4">
-          <div className="space-y-2">
-            <Label htmlFor="category">Categoria</Label>
-            <Select value={category} onValueChange={setCategory}>
-              <SelectTrigger id="category">
-                <SelectValue placeholder="Selecione uma categoria" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="bug">Reportar Bug</SelectItem>
-                <SelectItem value="suggestion">Sugestão de Melhoria</SelectItem>
-                <SelectItem value="other">Outro</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="message">Mensagem</Label>
-            <Textarea
-              id="message"
-              placeholder="Descreva o seu feedback em detalhe..."
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              rows={6}
-              maxLength={2000}
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4 mt-4">
+            <FormField
+              control={form.control}
+              name="category"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Categoria</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione uma categoria" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="bug">Reportar Bug</SelectItem>
+                      <SelectItem value="suggestion">Sugestão de Melhoria</SelectItem>
+                      <SelectItem value="other">Outro</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
             />
-            <p className="text-xs text-muted-foreground text-right">
-              {message.length}/2000 caracteres
-            </p>
-          </div>
-          <div className="flex justify-end gap-3">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setOpen(false)}
-              disabled={submitting}
-            >
-              Cancelar
-            </Button>
-            <Button type="submit" disabled={submitting}>
-              {submitting ? "A enviar..." : "Enviar Feedback"}
-            </Button>
-          </div>
-        </form>
+            <FormField
+              control={form.control}
+              name="message"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Mensagem</FormLabel>
+                  <FormControl>
+                    <Textarea
+                      placeholder="Descreva o seu feedback em detalhe..."
+                      rows={6}
+                      maxLength={2000}
+                      {...field}
+                    />
+                  </FormControl>
+                  <p className="text-xs text-muted-foreground text-right">
+                    {field.value.length}/2000 caracteres
+                  </p>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <div className="flex justify-end gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setOpen(false)}
+                disabled={form.formState.isSubmitting}
+              >
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={form.formState.isSubmitting}>
+                {form.formState.isSubmitting ? "A enviar..." : "Enviar Feedback"}
+              </Button>
+            </div>
+          </form>
+        </Form>
       </DialogContent>
     </Dialog>
   );

@@ -1,23 +1,31 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { getErrorMessage } from "@/lib/errorHandler";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { toast } from "sonner";
 import { GraduationCap, Eye, EyeOff, Loader2 } from "lucide-react";
+import { loginSchema, type LoginFormData } from "@/lib/validations/auth";
 
 // Definir o email do admin como constante para fácil manutenção
 const ADMIN_EMAIL = "admin@escola.pt";
 
 const Auth = () => {
   const navigate = useNavigate();
-  const [loading, setLoading] = useState(false);
-  const [loginEmail, setLoginEmail] = useState("");
-  const [loginPassword, setLoginPassword] = useState("");
   const [showLoginPassword, setShowLoginPassword] = useState(false);
+
+  const form = useForm<LoginFormData>({
+    resolver: zodResolver(loginSchema),
+    defaultValues: {
+      email: "",
+      password: "",
+    },
+  });
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -38,18 +46,14 @@ const Auth = () => {
     };
   }, [navigate]);
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-
+  const handleLogin = async (values: LoginFormData) => {
     const { data: loginData, error: loginError } = await supabase.auth.signInWithPassword({
-      email: loginEmail,
-      password: loginPassword,
+      email: values.email,
+      password: values.password,
     });
 
     if (loginError) {
       toast.error(getErrorMessage(loginError));
-      setLoading(false);
       return;
     }
 
@@ -78,7 +82,6 @@ const Auth = () => {
           await supabase.auth.signOut();
           // Mensagem mais genérica caso o registo staff não exista
           toast.error("Não foi possível verificar o estado da sua conta. Contacte o administrador.");
-          setLoading(false);
           return;
         }
 
@@ -86,7 +89,6 @@ const Auth = () => {
         if (staffData.status !== 'active') {
           await supabase.auth.signOut();
           toast.error("A sua conta está inativa ou terminada. Contacte o administrador.");
-          setLoading(false);
           return;
         }
 
@@ -98,12 +100,10 @@ const Auth = () => {
         console.error("Erro inesperado ao verificar status:", fetchError);
         await supabase.auth.signOut();
         toast.error("Ocorreu um erro ao verificar a sua conta.");
-        setLoading(false);
         return;
       }
     } else {
       toast.error("Ocorreu um erro inesperado durante o login.");
-      setLoading(false); // Garantir que o loading termina
     }
   };
 
@@ -126,61 +126,75 @@ const Auth = () => {
           <CardDescription>Insira as suas credenciais para aceder</CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="login-email">Email</Label>
-              <Input
-                id="login-email"
-                type="email"
-                placeholder="seu@email.com"
-                value={loginEmail}
-                onChange={(e) => setLoginEmail(e.target.value)}
-                required
-                autoComplete="email"
-                disabled={loading}
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(handleLogin)} className="space-y-4">
+              <FormField
+                control={form.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Email</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="email"
+                        placeholder="seu@email.com"
+                        autoComplete="email"
+                        disabled={form.formState.isSubmitting}
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
               />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="login-password">Palavra-passe</Label>
-              <div className="relative">
-                <Input
-                  id="login-password"
-                  type={showLoginPassword ? "text" : "password"}
-                  value={loginPassword}
-                  onChange={(e) => setLoginPassword(e.target.value)}
-                  required
-                  autoComplete="current-password"
-                  className="pr-10"
-                  disabled={loading}
-                />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 px-0"
-                  onClick={toggleLoginPasswordVisibility}
-                  aria-label={showLoginPassword ? "Esconder palavra-passe" : "Mostrar palavra-passe"}
-                  disabled={loading}
-                >
-                  {showLoginPassword ? (
-                    <EyeOff className="h-4 w-4" />
-                  ) : (
-                    <Eye className="h-4 w-4" />
-                  )}
-                </Button>
-              </div>
-            </div>
-            <Button type="submit" className="w-full gap-2" disabled={loading}>
-              {loading ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                   A entrar...
-                </>
-               ) : (
-                 "Entrar"
-               )}
-            </Button>
-          </form>
+              <FormField
+                control={form.control}
+                name="password"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Palavra-passe</FormLabel>
+                    <FormControl>
+                      <div className="relative">
+                        <Input
+                          type={showLoginPassword ? "text" : "password"}
+                          autoComplete="current-password"
+                          className="pr-10"
+                          disabled={form.formState.isSubmitting}
+                          {...field}
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 px-0"
+                          onClick={toggleLoginPasswordVisibility}
+                          aria-label={showLoginPassword ? "Esconder palavra-passe" : "Mostrar palavra-passe"}
+                          disabled={form.formState.isSubmitting}
+                        >
+                          {showLoginPassword ? (
+                            <EyeOff className="h-4 w-4" />
+                          ) : (
+                            <Eye className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </div>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <Button type="submit" className="w-full gap-2" disabled={form.formState.isSubmitting}>
+                {form.formState.isSubmitting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    A entrar...
+                  </>
+                ) : (
+                  "Entrar"
+                )}
+              </Button>
+            </form>
+          </Form>
         </CardContent>
       </Card>
     </div>
