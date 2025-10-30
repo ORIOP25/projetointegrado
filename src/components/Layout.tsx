@@ -26,6 +26,7 @@ import {
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useToast } from "@/hooks/use-toast";
 import { useUserRole } from "@/hooks/useUserRole";
+import { FeedbackDialog } from "@/components/FeedbackDialog";
 
 const Layout = () => {
   const navigate = useNavigate();
@@ -187,6 +188,9 @@ const Layout = () => {
       <main className="container py-6">
         <Outlet />
       </main>
+
+      {/* Feedback Button */}
+      <FeedbackDialog />
     </div>
   );
 };
