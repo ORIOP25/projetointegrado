@@ -4,21 +4,14 @@ import { Button } from "@/components/ui/button";
 import { getErrorMessage } from "@/lib/errorHandler";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Textarea } from "@/components/ui/textarea";
-import { Lightbulb, Loader2, Sparkles, Send } from "lucide-react";
+import { Lightbulb, Loader2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
-import { StarRating } from "@/components/StarRating";
-
 import { useUserRole } from "@/hooks/useUserRole";
 
 const Recommendations = () => {
   const [loading, setLoading] = useState(false);
   const [recommendations, setRecommendations] = useState<string>("");
   const [context, setContext] = useState<any>(null);
-  const [rating, setRating] = useState<number>(0);
-  const [feedbackText, setFeedbackText] = useState<string>("");
-  const [submittingFeedback, setSubmittingFeedback] = useState(false);
-  const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
   const { isGlobalAdmin } = useUserRole();
 
   // Redirect if not global admin
@@ -42,9 +35,6 @@ const Recommendations = () => {
 
   const generateRecommendations = async () => {
     setLoading(true);
-    setFeedbackSubmitted(false);
-    setRating(0);
-    setFeedbackText("");
     try {
       const { data, error } = await supabase.functions.invoke("ai-recommendations");
 
@@ -59,43 +49,6 @@ const Recommendations = () => {
       toast.error(getErrorMessage(error));
     } finally {
       setLoading(false);
-    }
-  };
-
-  const submitFeedback = async () => {
-    if (rating === 0) {
-      toast.error("Por favor, selecione uma classificação");
-      return;
-    }
-
-    setSubmittingFeedback(true);
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (!user) {
-        toast.error("Utilizador não autenticado");
-        return;
-      }
-
-      const { error } = await supabase
-        .from("ai_recommendations_feedback")
-        .insert({
-          user_id: user.id,
-          recommendations_text: recommendations,
-          context_data: context,
-          rating: rating,
-          feedback_text: feedbackText || null,
-        });
-
-      if (error) throw error;
-
-      setFeedbackSubmitted(true);
-      toast.success("Obrigado pelo seu feedback!");
-    } catch (error: any) {
-      console.error("Error submitting feedback:", error);
-      toast.error(getErrorMessage(error));
-    } finally {
-      setSubmittingFeedback(false);
     }
   };
 
@@ -208,68 +161,6 @@ const Recommendations = () => {
                     {recommendations}
                   </AlertDescription>
                 </Alert>
-              </CardContent>
-            </Card>
-
-            <Card className="border-primary/20">
-              <CardHeader>
-                <CardTitle className="text-lg">
-                  Avaliar Recomendações
-                </CardTitle>
-                <CardDescription>
-                  O seu feedback ajuda-nos a melhorar as recomendações futuras
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {feedbackSubmitted ? (
-                  <Alert className="bg-success/10 border-success/20">
-                    <AlertDescription className="text-success-foreground">
-                      ✓ Feedback enviado com sucesso! Obrigado pela sua avaliação.
-                    </AlertDescription>
-                  </Alert>
-                ) : (
-                  <div className="space-y-4">
-                    <div>
-                      <label className="text-sm font-medium mb-2 block">
-                        Classificação
-                      </label>
-                      <StarRating
-                        rating={rating}
-                        onRatingChange={setRating}
-                        disabled={submittingFeedback}
-                      />
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium mb-2 block">
-                        Comentários (opcional)
-                      </label>
-                      <Textarea
-                        placeholder="Partilhe as suas observações sobre as recomendações..."
-                        value={feedbackText}
-                        onChange={(e) => setFeedbackText(e.target.value)}
-                        disabled={submittingFeedback}
-                        className="min-h-[100px]"
-                      />
-                    </div>
-                    <Button
-                      onClick={submitFeedback}
-                      disabled={submittingFeedback || rating === 0}
-                      className="gap-2"
-                    >
-                      {submittingFeedback ? (
-                        <>
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                          A enviar...
-                        </>
-                      ) : (
-                        <>
-                          <Send className="h-4 w-4" />
-                          Enviar Feedback
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                )}
               </CardContent>
             </Card>
           </>
