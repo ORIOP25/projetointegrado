@@ -1,3 +1,4 @@
+import React from "react"; // Importar React
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
@@ -11,7 +12,8 @@ interface TablePaginationProps {
   onGoToPage: (page: number) => void;
 }
 
-export function TablePagination({
+// Envolver a definição do componente com React.memo
+export const TablePagination = React.memo(function TablePagination({
   currentPage,
   totalPages,
   totalItems,
@@ -114,4 +116,7 @@ export function TablePagination({
       </div>
     </div>
   );
-}
+});
+
+// Opcional: Definir displayName
+TablePagination.displayName = "TablePagination";

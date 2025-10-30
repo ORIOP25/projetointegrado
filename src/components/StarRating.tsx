@@ -1,3 +1,4 @@
+import React from "react"; // Importar React
 import { Star } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -7,7 +8,8 @@ interface StarRatingProps {
   disabled?: boolean;
 }
 
-export const StarRating = ({ rating, onRatingChange, disabled = false }: StarRatingProps) => {
+// Envolver a definição do componente com React.memo
+export const StarRating = React.memo(function StarRating({ rating, onRatingChange, disabled = false }: StarRatingProps) {
   return (
     <div className="flex gap-1">
       {[1, 2, 3, 4, 5].map((star) => (
@@ -33,4 +35,7 @@ export const StarRating = ({ rating, onRatingChange, disabled = false }: StarRat
       ))}
     </div>
   );
-};
+});
+
+// Opcional: Definir displayName
+StarRating.displayName = "StarRating";

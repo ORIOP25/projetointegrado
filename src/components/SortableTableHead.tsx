@@ -1,3 +1,4 @@
+import React from "react"; // Importar React
 import { TableHead } from "@/components/ui/table";
 import { ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -12,7 +13,8 @@ interface SortableTableHeadProps<T> {
   className?: string;
 }
 
-export function SortableTableHead<T>({
+// 1. Definir a função do componente (podes dar um nome diferente se quiseres, ex: _SortableTableHead)
+function SortableTableHeadComponent<T>({
   column,
   label,
   sortKey,
@@ -33,3 +35,9 @@ export function SortableTableHead<T>({
     </TableHead>
   );
 }
+
+// 2. Envolver a função definida com React.memo e exportar
+export const SortableTableHead = React.memo(SortableTableHeadComponent) as <T>(props: SortableTableHeadProps<T>) => JSX.Element;
+
+// 3. (Opcional mas recomendado) Manter o displayName
+(SortableTableHead as any).displayName = "SortableTableHead";
