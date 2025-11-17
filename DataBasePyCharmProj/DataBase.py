@@ -6,65 +6,79 @@ DB_HOST = "127.0.0.1"
 DB_PORT = 3307
 DB_USER = "root"
 DB_PASSWORD = "pass"
-DB_NAME = "EscolaPublica"
-
-# ======================================================
-# FUNÇÃO PARA CRIAR BASE DE DADOS
-# ======================================================
-def create_database():
-    try:
-        conn = mysql.connector.connect(
-            host=DB_HOST,
-            user=DB_USER,
-            password=DB_PASSWORD
-        )
-        cursor = conn.cursor()
-        cursor.execute(f"CREATE DATABASE IF NOT EXISTS {DB_NAME};")
-        print(f"Base de dados '{DB_NAME}' criada ou já existente.")
-        conn.close()
-    except Error as e:
-        print("Erro ao criar base de dados:", e)
+DB_NAME = "sige_db"
 
 # ======================================================
 # FUNÇÃO PARA CRIAR CONEXÃO COM DB
 # ======================================================
 def get_connection():
-    return mysql.connector.connect(
-        host=DB_HOST,
-        user=DB_USER,
-        password=DB_PASSWORD,
-        database=DB_NAME
-    )
+    connection = None
+    try:
+        connection = mysql.connector.connect(
+            host=DB_HOST,
+            port=DB_PORT,
+            user=DB_USER,
+            password=DB_PASSWORD,
+            database=DB_NAME
+        )
+        print("Ligação à Base de Dados MySQL bem-sucedida")
+    except Error as e:
+        print(f"Ocorreu o erro '{e}'")
+    return connection
 
 # ======================================================
-# FUNÇÃO PARA CRIAR TABELAS
+# FUNÇÃO PARA CRIAR TABELAS (AGORA COM RESET)
 # ======================================================
 def create_tables():
-    table_queries = [
+    
+    # Lista de DROP (apagar) na ordem inversa das dependências
+    drop_queries = [
+        "DROP TABLE IF EXISTS Notas;",
+        "DROP TABLE IF EXISTS TurmasDisciplinas;",
+        "DROP TABLE IF EXISTS Alunos;",
+        "DROP TABLE IF EXISTS Turmas;",
+        "DROP TABLE IF EXISTS Professores;",
+        "DROP TABLE IF EXISTS Staff;",
+        "DROP TABLE IF EXISTS Ordenados;",
+        "DROP TABLE IF EXISTS Transacoes;",
+        "DROP TABLE IF EXISTS EncarregadoEducacao;",
+        "DROP TABLE IF EXISTS Disciplinas;",
+        "DROP TABLE IF EXISTS Fornecedores;",
+        "DROP TABLE IF EXISTS Financiamentos;",
+        "DROP TABLE IF EXISTS Escaloes;",
+        "DROP TABLE IF EXISTS Departamentos;",
+        "DROP TABLE IF EXISTS AI_Recommendation;"
+    ]
+
+    # Lista de CREATE (criar) na ordem correta
+    create_queries = [
 
         # Departamentos
         """
         CREATE TABLE IF NOT EXISTS Departamentos (
             Depart_id INT AUTO_INCREMENT PRIMARY KEY,
             Nome VARCHAR(50) NOT NULL
-        );
+        ) ENGINE = InnoDB;
         """,
 
         # Escaloes
         """
         CREATE TABLE IF NOT EXISTS Escaloes (
-            Escalao_id INT AUTO_INCREMENT PRIMARY KEY,
+            Escalao_id INT PRIMARY KEY,
             Nome VARCHAR(10) NOT NULL,
             Descricao VARCHAR(100),
             Valor_Base DECIMAL(8,2) NOT NULL,
             Bonus DECIMAL(8,2) DEFAULT 0.00
-        );
+        ) ENGINE = InnoDB;
         """,
 
         # Professores
         """
         CREATE TABLE IF NOT EXISTS Professores (
             Professor_id INT AUTO_INCREMENT PRIMARY KEY,
+            email VARCHAR(255) UNIQUE NOT NULL,
+            hashed_password VARCHAR(255) NOT NULL,
+            role VARCHAR(50) NOT NULL DEFAULT 'professor',
             Nome VARCHAR(50) NOT NULL,
             Data_Nasc DATE NOT NULL,
             Telefone CHAR(9),
@@ -73,7 +87,7 @@ def create_tables():
             Depart_id INT,
             FOREIGN KEY (Escalao_id) REFERENCES Escaloes(Escalao_id),
             FOREIGN KEY (Depart_id) REFERENCES Departamentos(Depart_id)
-        );
+        ) ENGINE = InnoDB;
         """,
 
         # Turmas
@@ -86,7 +100,7 @@ def create_tables():
             DiretorT INT,
             FOREIGN KEY (DiretorT) REFERENCES Professores(Professor_id),
             UNIQUE(Ano, Turma, AnoLetivo)
-        );
+        ) ENGINE = InnoDB;
         """,
 
         # EncarregadoEducacao
@@ -98,7 +112,7 @@ def create_tables():
             Email VARCHAR(50),
             Morada VARCHAR(100),
             Relacao VARCHAR(20)
-        );
+        ) ENGINE = InnoDB;
         """,
 
         # Alunos
@@ -116,7 +130,7 @@ def create_tables():
             EE_id INT,
             FOREIGN KEY (EE_id) REFERENCES EncarregadoEducacao(EE_id),
             FOREIGN KEY (Turma_id) REFERENCES Turmas(Turma_id)
-        );
+        ) ENGINE = InnoDB;
         """,
 
         # Disciplinas
@@ -125,7 +139,7 @@ def create_tables():
             Disc_id INT AUTO_INCREMENT PRIMARY KEY,
             Nome VARCHAR(50) NOT NULL,
             Categoria VARCHAR(30)
-        );
+        ) ENGINE = InnoDB;
         """,
 
         # TurmasDisciplinas
@@ -138,7 +152,7 @@ def create_tables():
             FOREIGN KEY (Turma_id) REFERENCES Turmas(Turma_id),
             FOREIGN KEY (Disc_id) REFERENCES Disciplinas(Disc_id),
             FOREIGN KEY (Professor_id) REFERENCES Professores(Professor_id)
-        );
+        ) ENGINE = InnoDB;
         """,
 
         # Notas
@@ -155,20 +169,23 @@ def create_tables():
             Ano_letivo VARCHAR(9),
             FOREIGN KEY (Aluno_id) REFERENCES Alunos(Aluno_id),
             FOREIGN KEY (Disc_id) REFERENCES Disciplinas(Disc_id)
-        );
+        ) ENGINE = InnoDB;
         """,
 
         # Staff
         """
         CREATE TABLE IF NOT EXISTS Staff (
             Staff_id INT AUTO_INCREMENT PRIMARY KEY,
+            email VARCHAR(255) UNIQUE NOT NULL,
+            hashed_password VARCHAR(255) NOT NULL,
+            role VARCHAR(50) NOT NULL,
             Nome VARCHAR(50) NOT NULL,
-            Cargo VARCHAR(50),
+            Cargo VARCHAR(100),
             Depart_id INT,
             Telefone CHAR(9),
             Morada VARCHAR(100),
             FOREIGN KEY (Depart_id) REFERENCES Departamentos(Depart_id)
-        );
+        ) ENGINE = InnoDB;
         """,
 
         # Ordenados
@@ -182,7 +199,7 @@ def create_tables():
             Valor DECIMAL(8,2),
             Data_Pagamento DATE,
             Observacoes TEXT
-        );
+        ) ENGINE = InnoDB;
 
         """,
 
@@ -194,7 +211,7 @@ def create_tables():
             Valor DECIMAL(10,2),
             Ano INT,
             Observacoes TEXT
-        );
+        ) ENGINE = InnoDB;
         """,
 
         # Fornecedores
@@ -209,7 +226,7 @@ def create_tables():
             Morada VARCHAR(100),
             IBAN VARCHAR(25),
             Observacoes TEXT
-        );
+        ) ENGINE = InnoDB;
         """,
 
         # Transacoes
@@ -224,7 +241,7 @@ def create_tables():
             Fornecedor_id INT,
             FOREIGN KEY (Fin_id) REFERENCES Financiamentos(Fin_id),
             FOREIGN KEY (Fornecedor_id) REFERENCES Fornecedores(Fornecedor_id)
-        );
+        ) ENGINE = InnoDB;
         """,
 
         # AI_Recommendation
@@ -232,68 +249,43 @@ def create_tables():
         CREATE TABLE IF NOT EXISTS AI_Recommendation (
             AI_id INT AUTO_INCREMENT PRIMARY KEY,
             Texto TEXT NOT NULL
-        );
+        ) ENGINE = InnoDB;
         """
     ]
 
     try:
         conn = get_connection()
+        if conn is None:
+            print("Não foi possível ligar à BD. Tabelas não criadas.")
+            return
+
         cursor = conn.cursor()
-        for query in table_queries:
+        
+        # 1. APAGAR tabelas antigas (para limpar)
+        print("A limpar tabelas antigas (reset)...")
+        for query in drop_queries:
             cursor.execute(query)
-        print("Todas as tabelas foram criadas ou já existiam.")
+        print("Tabelas limpas.")
+
+        # 2. CRIAR tabelas novas
+        print("A criar novas tabelas...")
+        for query in create_queries:
+            cursor.execute(query)
+        print("Todas as tabelas foram criadas.")
+        
         conn.commit()
         conn.close()
     except Error as e:
-        print("Erro ao criar tabelas:", e)
-
-# ======================================================
-# FUNÇÕES GERAIS DE CRUD
-# ======================================================
-def insert_data(table, columns, values):
-    try:
-        conn = get_connection()
-        cursor = conn.cursor()
-        cols = ', '.join(columns)
-        placeholders = ', '.join(['%s'] * len(values))
-        query = f"INSERT INTO {table} ({cols}) VALUES ({placeholders})"
-        cursor.execute(query, values)
-        conn.commit()
-        print(f"Dado inserido na tabela {table}.")
-        conn.close()
-    except Error as e:
-        print(f"Erro ao inserir na tabela {table}:", e)
-
-def read_data(table, columns='*', condition=None):
-    try:
-        conn = get_connection()
-        cursor = conn.cursor()
-        query = f"SELECT {columns} FROM {table}"
-        if condition:
-            query += f" WHERE {condition}"
-        cursor.execute(query)
-        results = cursor.fetchall()
-        conn.close()
-        return results
-    except Error as e:
-        print(f"Erro ao ler dados da tabela {table}:", e)
-        return []
-
-def delete_data(table, condition):
-    try:
-        conn = get_connection()
-        cursor = conn.cursor()
-        query = f"DELETE FROM {table} WHERE {condition}"
-        cursor.execute(query)
-        conn.commit()
-        print(f"Dados deletados da tabela {table} onde {condition}.")
-        conn.close()
-    except Error as e:
-        print(f"Erro ao deletar dados da tabela {table}:", e)
+        print(f"Erro ao criar tabelas: {e}")
 
 # ======================================================
 # FUNÇÃO PARA INICIAR DB
 # ======================================================
 def init_db():
-    create_database()
     create_tables()
+
+# ======================================================
+# EXECUTAR O SCRIPT
+# ======================================================
+if __name__ == '__main__':
+    init_db()
