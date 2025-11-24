@@ -1,33 +1,45 @@
+import { isAxiosError } from 'axios';
+import { z } from 'zod';
+
 /**
- * Sanitizes error messages to prevent information leakage
- * Maps database error codes to user-friendly messages
+ * Sanitizes error messages from various sources (Axios, Zod, JS Errors)
  */
-export const getErrorMessage = (error: any): string => {
-  // Handle Zod validation errors separately (these are safe to show)
-  if (error?.name === 'ZodError') {
-    return error.issues?.[0]?.message || 'Erro de validação';
+export const getErrorMessage = (error: unknown): string => {
+  // 1. Tratamento de Erros do Axios (Backend API)
+  if (isAxiosError(error)) {
+    // Se a API enviou uma mensagem específica (ex: "Credenciais inválidas")
+    if (error.response?.data?.detail) {
+      // O FastAPI às vezes envia array de erros (ex: validação) ou string
+      const detail = error.response.data.detail;
+      
+      if (typeof detail === 'string') {
+        return detail;
+      }
+      if (Array.isArray(detail)) {
+        // Erros de validação do Pydantic vêm como array
+        return detail.map((err: any) => err.msg).join(', ');
+      }
+    }
+    
+    // Erros de rede ou servidor sem mensagem
+    if (error.code === "ERR_NETWORK") return "Erro de conexão ao servidor.";
+    if (error.response?.status === 401) return "Não autorizado. Por favor faça login novamente.";
+    if (error.response?.status === 403) return "Não tem permissão para realizar esta ação.";
+    if (error.response?.status === 500) return "Erro interno do servidor.";
+    
+    return error.message || "Erro de comunicação com o servidor.";
   }
 
-  // Map common Postgres error codes
-  if (error?.code === '23505') return 'Este registo já existe';
-  if (error?.code === '23503') return 'Não é possível eliminar - existem registos relacionados';
-  if (error?.code === '23502') return 'Campos obrigatórios em falta';
-  if (error?.code === '42501') return 'Não tem permissão para esta operação';
-  if (error?.code === 'PGRST301') return 'Acesso negado';
-  
-  // Map Supabase auth errors
-  if (error?.message?.includes('Invalid login credentials')) {
-    return 'Credenciais inválidas. Verifique o seu email e palavra-passe.';
-  }
-  if (error?.message?.includes('Email not confirmed')) {
-    return 'Email não confirmado. Verifique a sua caixa de entrada.';
+  // 2. Tratamento de Erros do Zod (Validação de Frontend)
+  if (error instanceof z.ZodError) {
+    return error.errors[0].message;
   }
 
-  // Log the actual error server-side (in production, this should go to a logging service)
-  if (import.meta.env.DEV) {
-    console.error('Error details (dev only):', error);
+  // 3. Erros genéricos de JS
+  if (error instanceof Error) {
+    return error.message;
   }
 
-  // Generic fallback - never expose raw error messages
-  return 'Ocorreu um erro. Por favor, tente novamente.';
+  // 4. Fallback
+  return "Ocorreu um erro desconhecido.";
 };

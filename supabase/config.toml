@@ -1,7 +1,0 @@
-project_id = "intubltbbusfmycstwux"
-
-[functions.ai-recommendations]
-verify_jwt = true
-
-[functions.create-staff-user]
-verify_jwt = true

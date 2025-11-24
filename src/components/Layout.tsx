@@ -1,20 +1,19 @@
-import { useState, useEffect } from "react";
-import { Outlet, useNavigate, Link, useLocation } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
-import { Button } from "@/components/ui/button";
+import { useState, useContext } from "react";
+import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { AuthContext } from "@/context/AuthContext";
+import { cn } from "@/lib/utils";
 import {
   LayoutDashboard,
   Users,
-  Briefcase,
-  DollarSign,
+  GraduationCap,
+  Receipt,
   Lightbulb,
   LogOut,
-  GraduationCap,
   Menu,
   X,
   UserCircle,
-  ChevronDown,
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,174 +22,150 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { useToast } from "@/hooks/use-toast";
-import { useUserRole } from "@/hooks/useUserRole";
-import { FeedbackDialog } from "@/components/FeedbackDialog";
+import {
+  Sheet,
+  SheetContent,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 
 const Layout = () => {
-  const navigate = useNavigate();
   const location = useLocation();
-  const { toast } = useToast();
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const { role, isGlobalAdmin } = useUserRole();
-  const [userEmail, setUserEmail] = useState<string>("");
-  const [userName, setUserName] = useState<string>("");
+  const navigate = useNavigate();
+  const { user, logout } = useContext(AuthContext);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  useEffect(() => {
-    const loadUserData = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        setUserEmail(user.email || "");
-        // Try to get name from staff table
-        const { data: staffData } = await supabase
-          .from("staff")
-          .select("name")
-          .eq("user_id", user.id)
-          .maybeSingle();
-        
-        setUserName(staffData?.name || user.email?.split("@")[0] || "Usuário");
-      }
-    };
+  // Determina se o utilizador é admin global
+  const isGlobalAdmin = user?.role === 'global_admin';
 
-    loadUserData();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_OUT') {
-        navigate("/auth");
-      } else if (event === 'SIGNED_IN') {
-        loadUserData();
-      }
-    });
-
-    return () => subscription.unsubscribe();
-  }, [navigate]);
-
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    toast({
-      title: "Sessão terminada",
-      description: "Até breve!",
-    });
+  const handleLogout = () => {
+    logout();
     navigate("/auth");
   };
 
-  const allNavItems = [
-    { path: "/dashboard", icon: LayoutDashboard, label: "Dashboard", adminOnly: false },
-    { path: "/students", icon: Users, label: "Alunos", adminOnly: false },
-    { path: "/staff", icon: Briefcase, label: "Funcionários", adminOnly: false },
-    { path: "/finances", icon: DollarSign, label: "Finanças", adminOnly: true },
-    { path: "/recommendations", icon: Lightbulb, label: "IA Recomendações", adminOnly: true },
+  const navItems = [
+    {
+      title: "Dashboard",
+      href: "/dashboard",
+      icon: LayoutDashboard,
+      show: true, // Todos veem
+    },
+    {
+      title: "Alunos",
+      href: "/students",
+      icon: GraduationCap,
+      show: true, // Todos veem
+    },
+    {
+      title: "Staff",
+      href: "/staff",
+      icon: Users,
+      show: true, // Todos veem (a proteção de edição é interna à página)
+    },
+    {
+      title: "Finanças",
+      href: "/finances",
+      icon: Receipt,
+      show: isGlobalAdmin, // Apenas Admin
+    },
+    {
+      title: "Recomendações IA",
+      href: "/recommendations",
+      icon: Lightbulb,
+      show: isGlobalAdmin, // Apenas Admin
+    },
   ];
 
-  // Filter navigation items based on user role
-  const navItems = allNavItems.filter(item => !item.adminOnly || isGlobalAdmin);
+  const NavContent = () => (
+    <div className="flex flex-col h-full">
+      <div className="p-6">
+        <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary to-primary/60">
+          SIGE
+        </h1>
+        <p className="text-xs text-muted-foreground mt-1">Sistema de Gestão Escolar</p>
+      </div>
+
+      <nav className="flex-1 px-4 space-y-2">
+        {navItems.filter(item => item.show).map((item) => {
+          const Icon = item.icon;
+          const isActive = location.pathname === item.href;
+
+          return (
+            <Link
+              key={item.href}
+              to={item.href}
+              onClick={() => setIsMobileMenuOpen(false)}
+              className={cn(
+                "flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 group",
+                isActive
+                  ? "bg-primary text-primary-foreground shadow-md"
+                  : "hover:bg-muted text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <Icon className={cn("h-5 w-5", isActive ? "text-primary-foreground" : "group-hover:text-foreground")} />
+              <span className="font-medium">{item.title}</span>
+            </Link>
+          );
+        })}
+      </nav>
+
+      <div className="p-4 border-t mt-auto">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" className="w-full justify-start gap-3 px-4 h-14">
+              <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
+                <UserCircle className="h-5 w-5 text-primary" />
+              </div>
+              <div className="flex flex-col items-start text-left overflow-hidden">
+                <span className="text-sm font-medium truncate w-full">
+                  {user?.email}
+                </span>
+                <span className="text-xs text-muted-foreground capitalize">
+                  {user?.role?.replace('_', ' ')}
+                </span>
+              </div>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-56">
+            <DropdownMenuLabel>A minha conta</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem className="text-destructive focus:text-destructive cursor-pointer" onClick={handleLogout}>
+              <LogOut className="mr-2 h-4 w-4" />
+              Terminar Sessão
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    </div>
+  );
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="sticky top-0 z-50 w-full border-b bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/60">
-        <div className="container flex h-16 items-center justify-between">
-          <div className="flex items-center gap-2">
-            <button
-              className="md:hidden"
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            >
-              {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
-            </button>
-            <div className="flex items-center gap-2">
-              <div className="p-2 bg-primary rounded-lg">
-                <GraduationCap className="h-5 w-5 text-primary-foreground" />
-              </div>
-              <span className="font-bold text-lg hidden sm:inline">Sistema de Gestão Escolar</span>
-            </div>
-          </div>
+    <div className="min-h-screen bg-background flex">
+      {/* Desktop Sidebar */}
+      <aside className="hidden md:flex w-64 flex-col border-r bg-card fixed inset-y-0 z-50">
+        <NavContent />
+      </aside>
 
-          <nav className="hidden md:flex gap-1">
-            {navItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = location.pathname === item.path;
-              return (
-                <Link key={item.path} to={item.path}>
-                  <Button
-                    variant={isActive ? "default" : "ghost"}
-                    size="sm"
-                    className="gap-2"
-                  >
-                    <Icon className="h-4 w-4" />
-                    {item.label}
-                  </Button>
-                </Link>
-              );
-            })}
-          </nav>
-
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="gap-2 h-auto py-2 px-3">
-                <Avatar className="h-8 w-8">
-                  <AvatarFallback className="bg-primary text-primary-foreground text-sm">
-                    {userName.substring(0, 2).toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="hidden md:flex flex-col items-start">
-                  <span className="text-sm font-medium">{userName}</span>
-                  <p className="text-xs text-muted-foreground">
-                    {role === "global_admin" ? "Global Admin" : "Staff"}
-                  </p>
-                </div>
-                <ChevronDown className="h-4 w-4 hidden md:block" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuLabel>
-                <div className="flex flex-col space-y-1">
-                  <p className="text-sm font-medium leading-none">{userName}</p>
-                  <p className="text-xs leading-none text-muted-foreground">{userEmail}</p>
-                </div>
-              </DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={handleLogout} className="text-destructive cursor-pointer">
-                <LogOut className="mr-2 h-4 w-4" />
-                <span>Terminar Sessão</span>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-
-        {/* Mobile Navigation */}
-        {mobileMenuOpen && (
-          <nav className="md:hidden border-t p-4 space-y-2 bg-card">
-            {navItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = location.pathname === item.path;
-              return (
-                <Link
-                  key={item.path}
-                  to={item.path}
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  <Button
-                    variant={isActive ? "default" : "ghost"}
-                    className="w-full justify-start gap-2"
-                  >
-                    <Icon className="h-4 w-4" />
-                    {item.label}
-                  </Button>
-                </Link>
-              );
-            })}
-          </nav>
-        )}
-      </header>
+      {/* Mobile Header */}
+      <div className="md:hidden fixed top-0 left-0 right-0 h-16 border-b bg-background/80 backdrop-blur-sm z-50 flex items-center px-4 justify-between">
+        <span className="font-bold text-lg">SIGE</span>
+        <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
+          <SheetTrigger asChild>
+            <Button variant="ghost" size="icon">
+              {isMobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            </Button>
+          </SheetTrigger>
+          <SheetContent side="left" className="p-0 w-72">
+            <NavContent />
+          </SheetContent>
+        </Sheet>
+      </div>
 
       {/* Main Content */}
-      <main className="container py-6">
-        <Outlet />
+      <main className="flex-1 md:ml-64 p-4 md:p-8 pt-20 md:pt-8 overflow-x-hidden w-full">
+        <div className="max-w-7xl mx-auto fade-in">
+          <Outlet />
+        </div>
       </main>
-
-      {/* Feedback Button */}
-      <FeedbackDialog />
     </div>
   );
 };

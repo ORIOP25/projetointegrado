@@ -1,11 +1,12 @@
-import { createRoot } from "react-dom/client";
-import App from "./App.tsx";
-import "./index.css";
-import { ThemeProvider } from "next-themes"; // Importa o ThemeProvider
+import { createRoot } from 'react-dom/client'
+import App from './App.tsx'
+import './index.css'
+import { AuthProvider } from './context/AuthContext.tsx' 
+import { Toaster } from "@/components/ui/toaster" // Importante para os popups
 
-createRoot(document.getElementById("root")!).render(
-  // Adiciona o ThemeProvider aqui
-  <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+createRoot(document.getElementById('root')!).render(
+  <AuthProvider> 
     <App />
-  </ThemeProvider>
-);
+    <Toaster />
+  </AuthProvider>,
+)
