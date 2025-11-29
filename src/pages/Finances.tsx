@@ -1,28 +1,78 @@
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Receipt, Loader2 } from "lucide-react";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import api from "@/services/api"; // instância axios configurada
+import { Transacao } from "@/types/transacao"; // tipo
 
 const Finances = () => {
+  const [transacoes, setTransacoes] = useState<Transacao[]>([]);
+  const [saldo, setSaldo] = useState<number>(0);
+
+  useEffect(() => {
+    const loadTransacoes = async () => {
+      try {
+        const response = await api.get("/transacoes"); // endpoint da API
+        setTransacoes(response.data);
+
+        // calcular saldo
+        const total = response.data.reduce((acc: number, t: Transacao) => {
+          if (t.Tipo === "Receita") return acc + (t.Valor || 0);
+          if (t.Tipo === "Despesa") return acc - (t.Valor || 0);
+          return acc;
+        }, 0);
+        setSaldo(total);
+      } catch (error) {
+        console.error("Erro ao carregar transações:", error);
+      }
+    };
+
+    loadTransacoes();
+  }, []);
+
   return (
     <div className="space-y-6 fade-in">
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold tracking-tight">Gestão Financeira</h1>
-      </div>
-      
-      <Card className="border-dashed border-2 bg-muted/50">
+      <h1 className="text-3xl font-bold">Finanças</h1>
+
+      {/* Saldo */}
+      <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-muted-foreground">
-            <Receipt className="h-5 w-5" />
-            Módulo em Migração
-          </CardTitle>
+          <CardTitle>Saldo Atual</CardTitle>
         </CardHeader>
-        <CardContent className="flex flex-col items-center justify-center py-16 text-center text-muted-foreground">
-          <div className="bg-background p-4 rounded-full mb-4 shadow-sm">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          </div>
-          <h3 className="font-semibold text-lg text-foreground">A aguardar conexão à API</h3>
-          <p className="max-w-sm mt-2 text-sm">
-            O histórico financeiro e o registo de transações estão a ser migrados para o novo esquema SQL.
-          </p>
+        <CardContent>
+          <h2 className="text-2xl font-semibold">
+            {saldo.toLocaleString("pt-PT", { style: "currency", currency: "EUR" })}
+          </h2>
+        </CardContent>
+      </Card>
+
+      {/* Lista de transações */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Lista de Transações</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Data</TableHead>
+                <TableHead>Tipo</TableHead>
+                <TableHead>Descrição</TableHead>
+                <TableHead>Valor</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {transacoes.map((t) => (
+                <TableRow key={t.Transacao_id}>
+                  <TableCell>{t.Data}</TableCell>
+                  <TableCell>{t.Tipo}</TableCell>
+                  <TableCell>{t.Descricao}</TableCell>
+                  <TableCell>
+                    {t.Valor?.toLocaleString("pt-PT", { style: "currency", currency: "EUR" })}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         </CardContent>
       </Card>
     </div>
